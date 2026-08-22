@@ -79,9 +79,34 @@
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC) return;
         this.ctx = new AC();
+
+        // master -> compressor -> out. The compressor is what lets the game
+        // be genuinely loud: it squashes peaks so the overall level can be
+        // pushed hard without anything clipping when hits stack up.
         this.master = this.ctx.createGain();
-        this.master.gain.value = 0.9;
-        this.master.connect(this.ctx.destination);
+        this.master.gain.value = 4.2;
+
+        const comp = this.ctx.createDynamicsCompressor();
+        comp.threshold.value = -25;
+        comp.knee.value = 16;
+        comp.ratio.value = 14;
+        comp.attack.value = 0.002;
+        comp.release.value = 0.18;
+
+        const out = this.ctx.createGain();
+        out.gain.value = 1.3;
+
+        this.master.connect(comp);
+        comp.connect(out);
+        out.connect(this.ctx.destination);
+        this.comp = comp;
+
+        // UI and jingle sounds sit on their own bus *after* the compressor.
+        // Routed through it, heavy compression would drag every quiet sound
+        // back up toward the smash and undo any level balance.
+        this.ui = this.ctx.createGain();
+        this.ui.gain.value = 0.5;
+        this.ui.connect(out);
 
         // One second of white noise, reused by every percussive sound.
         const len = Math.floor(this.ctx.sampleRate * 1);
@@ -280,7 +305,7 @@
       src.stop(t + dur + 0.02);
     }
 
-    _tone(type, f0, f1, dur, gain, delay) {
+    _tone(type, f0, f1, dur, gain, delay, dest) {
       const t = this.ctx.currentTime + (delay || 0);
       const osc = this.ctx.createOscillator();
       osc.type = type;
@@ -292,7 +317,7 @@
       g.gain.exponentialRampToValueAtTime(gain, t + 0.008);
       g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
 
-      osc.connect(g); g.connect(this.master);
+      osc.connect(g); g.connect(dest || this.master);
       osc.start(t);
       osc.stop(t + dur + 0.02);
     }
@@ -317,35 +342,49 @@
       const dur = s.dur;
       const j = 0.88 + Math.random() * 0.28;           // per-hit variation
 
-      const bus = this._squishBus(s.cutoff, 0.9 * s.gain, s.wet);
+      const bus = this._squishBus(s.cutoff, 2.4 * s.gain, s.wet);
 
       // Chitin giving way first: dry low grains, only on armoured bugs.
       if (s.crackle) {
         this._grains(bus, { count: s.crackle, durMin: 0.007, durMax: 0.018,
-          f0: 420 * p, f1: 240 * p, q: 9, gain: 0.14, spread: 0.045 });
+          f0: 420 * p, f1: 240 * p, q: 9, gain: 0.40, spread: 0.045 });
       }
 
       // 1. the squelch itself - resonance glides down and wobbles as it goes
-      this._wet(bus, { dur: dur, f0: s.f0 * p * j, f1: s.f1 * p, q: s.q, gain: 0.55,
+      this._wet(bus, { dur: dur, f0: s.f0 * p * j, f1: s.f1 * p, q: s.q, gain: 1.5,
         attack: s.attack, rate: 0.45 + Math.random() * 0.2,
         flutter: s.flutter, wobble: [7, 15], wobbleDepth: 0.26 });
 
       // 2. thinner resonance on top - the squeak of the body folding
-      this._wet(bus, { dur: dur * 0.78, f0: s.f0 * 1.5 * p * j, f1: s.f1 * 1.8 * p, q: s.q + 7, gain: 0.26,
+      this._wet(bus, { dur: dur * 0.78, f0: s.f0 * 1.5 * p * j, f1: s.f1 * 1.8 * p, q: s.q + 7, gain: 0.72,
         attack: s.attack * 1.4, delay: 0.014, rate: 0.6 + Math.random() * 0.25,
         flutter: [s.flutter[0] + 6, s.flutter[1] + 18], wobble: [9, 20], wobbleDepth: 0.3 });
 
-      // 3. air being squeezed out
-      this._wet(bus, { dur: dur * 0.7, type: 'lowpass', f0: s.f0 * 0.95 * p, f1: 260 * p, q: 1, gain: 0.20 * s.body,
+      // 3. the slap: a mid-band burst that gives the hit its punch. Soft
+      // enough on the attack (8ms+) that it lands as a wet slap, not a click.
+      this._wet(bus, { dur: 0.11, type: 'bandpass', f0: 520 * p, f1: 175 * p, q: 3.5, gain: 1.15 * s.body,
+        attack: 0.009, rate: 0.55 });
+
+      // 4. low body weight - lowpassed, slow attack, no click
+      this._tone('sine', 130 * p, 44, 0.16, 0.58 * s.body, 0.004);
+
+      // 5. air being squeezed out
+      this._wet(bus, { dur: dur * 0.7, type: 'lowpass', f0: s.f0 * 0.95 * p, f1: 260 * p, q: 1, gain: 0.52 * s.body,
         attack: 0.03, rate: 0.32 + Math.random() * 0.12 });
 
-      // 4. bubbles bursting through the wet part - the texture layer
+      // 6. bubbles bursting through the wet part - the texture layer
       this._grains(bus, { count: s.bubbles, durMin: 0.012, durMax: 0.034,
-        f0: 1500 * p, f1: 520 * p, q: 22, gain: 0.075 * s.wet, spread: dur * 0.8, delay: 0.02 });
+        f0: 1500 * p, f1: 520 * p, q: 22, gain: 0.22 * s.wet, spread: dur * 0.8, delay: 0.02 });
 
-      // 5. dull spatter landing after the squelch
+      // 7. dull spatter landing after the squelch
       this._grains(bus, { count: s.drops, durMin: 0.05, durMax: 0.1,
-        f0: 900 * p, f1: 330 * p, q: 15, gain: 0.10 * s.wet, spread: 0.13, delay: 0.05 });
+        f0: 900 * p, f1: 330 * p, q: 15, gain: 0.30 * s.wet, spread: 0.15, delay: 0.05 });
+
+      // 8. deep combo streaks get an extra low swell underneath
+      if (step >= 6) {
+        this._wet(bus, { dur: dur * 1.1, type: 'lowpass', f0: 380 * p, f1: 120 * p, q: 2,
+          gain: 0.38 + step * 0.016, attack: 0.02, rate: 0.28 });
+      }
     }
 
     /* First hit on an armoured bug: a dull shell knock, not a kill. Beetles
@@ -354,12 +393,13 @@
       this.buzz(8);
       if (!this.ready) return;
       const beetle = type === 'beetle';
-      const bus = this._squishBus(beetle ? 1800 : 1300, 0.85, 0.5);
+      const bus = this._squishBus(beetle ? 1800 : 1300, 1.35, 0.5);
       this._grains(bus, { count: beetle ? 4 : 2, durMin: 0.006, durMax: 0.014,
-        f0: beetle ? 900 : 520, f1: beetle ? 480 : 260, q: 8, gain: 0.16, spread: 0.03 });
-      this._wet(bus, { dur: 0.10, f0: beetle ? 560 : 400, f1: beetle ? 300 : 210, q: 7, gain: 0.40,
+        f0: beetle ? 900 : 520, f1: beetle ? 480 : 260, q: 8, gain: 0.30, spread: 0.03 });
+      this._wet(bus, { dur: 0.10, f0: beetle ? 560 : 400, f1: beetle ? 300 : 210, q: 7, gain: 0.70,
         attack: 0.008, rate: 0.6 });
-      this._wet(bus, { dur: 0.07, type: 'lowpass', f0: 700, f1: 300, q: 1, gain: 0.22, attack: 0.01, rate: 0.4 });
+      this._wet(bus, { dur: 0.07, type: 'lowpass', f0: 700, f1: 300, q: 1, gain: 0.40, attack: 0.01, rate: 0.4 });
+      this._tone('sine', 150, 60, 0.09, 0.22, 0.004);
     }
 
     /* Wasp: harsh, angry, obviously a mistake. */
@@ -381,18 +421,23 @@
 
       const g = this.ctx.createGain();
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.42, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0008, t + 0.45);
+      g.gain.exponentialRampToValueAtTime(0.85, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0008, t + 0.55);
 
       osc.connect(g); g.connect(this.master);
       osc.start(t); lfo.start(t);
-      osc.stop(t + 0.47); lfo.stop(t + 0.47);
+      osc.stop(t + 0.57); lfo.stop(t + 0.57);
+
+      // Bite underneath it, so a mistake really lands.
+      this._tone('sawtooth', 150, 55, 0.34, 0.34, 0.01);
+      this._tone('square', 320, 90, 0.22, 0.20, 0.02);
     }
 
     lifeLost() {
       this.buzz(70);
       if (!this.ready) return;
-      this._tone('square', 400, 120, 0.28, 0.22);
+      this._tone('square', 400, 120, 0.30, 0.40);
+      this._tone('sine', 200, 70, 0.34, 0.26, 0.02);
     }
 
     /* 1UP: a bright, unmistakably good four-note rise. */
@@ -404,30 +449,32 @@
       });
     }
 
+    /* Deliberately quiet: the combo is a chime under the smash, not a
+       competitor to it. */
     combo(level) {
       if (!this.ready) return;
       const base = 520 + level * 90;
-      this._tone('square', base, base * 1.02, 0.07, 0.16);
-      this._tone('square', base * 1.5, base * 1.52, 0.09, 0.14, 0.07);
+      this._tone('sine', base, base * 1.02, 0.07, 0.16, 0, this.ui);
+      this._tone('sine', base * 1.5, base * 1.52, 0.09, 0.12, 0.07, this.ui);
     }
 
     gameOver() {
       this.buzz([60, 60, 120]);
       if (!this.ready) return;
-      this._tone('sawtooth', 380, 300, 0.18, 0.20, 0);
-      this._tone('sawtooth', 300, 220, 0.20, 0.20, 0.16);
-      this._tone('sawtooth', 220, 90, 0.55, 0.22, 0.34);
+      this._tone('sawtooth', 380, 300, 0.18, 0.26, 0, this.ui);
+      this._tone('sawtooth', 300, 220, 0.20, 0.26, 0.16, this.ui);
+      this._tone('sawtooth', 220, 90, 0.55, 0.29, 0.34, this.ui);
     }
 
     countdown(last) {
       if (!this.ready) return;
-      this._tone('sine', last ? 880 : 520, last ? 900 : 530, last ? 0.22 : 0.10, 0.2);
+      this._tone('sine', last ? 880 : 520, last ? 900 : 530, last ? 0.22 : 0.10, 0.22, 0, this.ui);
     }
 
     click() {
       this.buzz(6);
       if (!this.ready) return;
-      this._tone('square', 660, 420, 0.05, 0.14);
+      this._tone('square', 660, 420, 0.05, 0.30, 0, this.ui);
     }
   }
 

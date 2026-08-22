@@ -46,6 +46,9 @@ spiders once things are properly chaotic.
   a life; letting it float past costs nothing and it never breaks your combo
 - Combo: every 3 consecutive kills raises the multiplier, up to x5. A miss, a
   wasp hit or an escaped bug breaks it
+- One life at a time: after any loss there is a 0.9 s grace window, so a
+  panicked double-tap on two wasps cannot take two lives in the same breath.
+  The wasp always costs exactly one life - it only ends a run if it was the last
 - Difficulty ramps: spawn rate, speed, simultaneous bugs and the odds of the
   nastier species all grow over time
 
@@ -95,6 +98,22 @@ Every species squishes differently:
 
 Plus a wasp sting, life lost, combo blips, a four-note 1UP rise, game over and
 UI clicks. Sound and vibration toggles live behind the menu gear and persist.
+
+Levels are set so the smash dominates. The master bus runs into a compressor
+(-25 dB threshold, 14:1) so the output can be pushed hard without clipping, but
+that same compression drags quiet sounds back up - so the combo chime, countdown,
+game over and UI clicks sit on a separate bus **after** the compressor, where
+their levels actually hold. Measured against a smash:
+
+| Sound | relative level |
+|---|---|
+| Wasp sting / life lost / 1UP | about equal (these are events that matter) |
+| UI click | -11.5 dB |
+| Countdown | -14.9 dB |
+| Game over | -15.9 dB |
+| Combo chime | -18.4 dB |
+
+Six kills landing at once still peak below 1.0 with zero clipped samples.
 
 ### Phone feel
 

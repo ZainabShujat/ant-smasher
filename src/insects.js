@@ -457,35 +457,177 @@
     }
   }
 
+  /* Ant: glossy black, jointed reddish legs, segmented gaster with a hard
+     specular highlight and a rim light so it stays readable on the wood. */
   function drawAnt(g, L, phase, c) {
     g.scale(L / 46, L / 46);
-    shadow(g, 12, 20);
+    shadow(g, 11, 19);
 
-    legs(g, phase, c.limb, [
-      { y: -4, len: 20, spread: 1.15, base: -0.35 },
-      { y: 1, len: 22, spread: 1.45, base: 0.15 },
-      { y: 6, len: 21, spread: 1.15, base: 0.75 }
-    ]);
-    antennae(g, phase, c.limb, -13, 17);
+    antLegs(g, phase, c);
+    elbowedAntennae(g, phase, c.limb);
 
-    g.strokeStyle = c.limb; g.lineWidth = 2.4;
-    g.beginPath(); g.moveTo(0, 2); g.lineTo(0, 8); g.stroke();   // petiole
+    // --- Gaster (abdomen): the big glossy teardrop
+    g.save();
+    g.translate(0, 14);
+    const gasterGrad = g.createRadialGradient(-3.2, -4.5, 1, 0, 1, 13);
+    gasterGrad.addColorStop(0, c.shine);
+    gasterGrad.addColorStop(0.18, c.body);
+    gasterGrad.addColorStop(0.75, '#0b0806');
+    gasterGrad.addColorStop(1, '#000');
+    g.fillStyle = gasterGrad;
+    g.beginPath();
+    g.ellipse(0, 0, 8.8, 11.4, 0, 0, TAU);
+    g.fill();
 
-    segment(g, 0, 14, 8.5, 11, c.body, c.shine);   // gaster
-    segment(g, 0, 0, 5.6, 7.5, c.accent, c.shine); // thorax
-    segment(g, 0, -11, 6.6, 6, c.body, c.shine);   // head
-
-    // Mandibles
-    g.strokeStyle = c.accent; g.lineWidth = 1.8;
-    for (let side = -1; side <= 1; side += 2) {
+    // Segment creases
+    g.strokeStyle = 'rgba(0,0,0,.5)';
+    g.lineWidth = 0.9;
+    for (let i = 0; i < 3; i++) {
+      const y = -3 + i * 4.4;
+      const w = 8.4 * Math.cos(Math.asin(clamp(y / 11.4, -1, 1)));
       g.beginPath();
-      g.moveTo(side * 3, -15);
-      g.quadraticCurveTo(side * 6, -19, side * 2, -21);
+      g.moveTo(-w, y);
+      g.quadraticCurveTo(0, y + 2.4, w, y);
       g.stroke();
     }
 
-    eyes(g, 3.4, -12.5);
-    gloss(g, -2.6, 10, 2.4, 4.6);
+    // Rim light along the lower right, specular spot upper left
+    g.strokeStyle = 'rgba(255,255,255,.22)';
+    g.lineWidth = 1.3;
+    g.beginPath();
+    g.ellipse(0, 0, 8.4, 11, 0, -0.5, 2.1);
+    g.stroke();
+    g.fillStyle = 'rgba(255,255,255,.62)';
+    g.beginPath();
+    g.ellipse(-3.4, -5.0, 1.5, 2.7, -0.35, 0, TAU);
+    g.fill();
+    g.fillStyle = 'rgba(255,255,255,.9)';
+    g.beginPath();
+    g.ellipse(-3.8, -6.2, 0.7, 1.1, -0.35, 0, TAU);
+    g.fill();
+    g.fillStyle = 'rgba(255,255,255,.3)';
+    g.beginPath();
+    g.ellipse(-4.4, 2.4, 1.1, 2.6, -0.25, 0, TAU);
+    g.fill();
+    g.restore();
+
+    // --- Petiole: the two little nodes joining gaster to thorax
+    g.fillStyle = c.accent;
+    g.beginPath(); g.ellipse(0, 5.4, 1.9, 2.1, 0, 0, TAU); g.fill();
+    g.beginPath(); g.ellipse(0, 2.2, 1.6, 1.8, 0, 0, TAU); g.fill();
+
+    // --- Thorax (alitrunk): two lobes, reddish like the reference ants
+    segment(g, 0, -1.5, 4.6, 4.4, c.accent, c.shine);
+    segment(g, 0, -5.5, 4.0, 3.6, c.accent, c.shine);
+    g.fillStyle = 'rgba(255,255,255,.28)';
+    g.beginPath(); g.ellipse(-1.8, -3.6, 1.2, 2.4, -0.4, 0, TAU); g.fill();
+
+    // --- Head: rounded square with mandibles
+    g.save();
+    g.translate(0, -12);
+    const headGrad = g.createRadialGradient(-2.4, -2.6, 0.8, 0, 0, 8);
+    headGrad.addColorStop(0, c.shine);
+    headGrad.addColorStop(0.22, c.body);
+    headGrad.addColorStop(0.85, '#0a0705');
+    headGrad.addColorStop(1, '#000');
+    g.fillStyle = headGrad;
+    g.beginPath();
+    g.ellipse(0, 0, 6.4, 5.8, 0, 0, TAU);
+    g.fill();
+    g.fillStyle = 'rgba(255,255,255,.5)';
+    g.beginPath();
+    g.ellipse(-2.3, -2.3, 1.2, 1.8, -0.4, 0, TAU);
+    g.fill();
+
+    // Compound eyes on the sides of the head
+    g.fillStyle = 'rgba(20,15,12,.95)';
+    for (let side = -1; side <= 1; side += 2) {
+      g.beginPath();
+      g.ellipse(side * 4.6, -0.6, 1.5, 2.0, side * 0.3, 0, TAU);
+      g.fill();
+    }
+    g.fillStyle = 'rgba(255,255,255,.5)';
+    for (let side = -1; side <= 1; side += 2) {
+      g.beginPath();
+      g.ellipse(side * 4.4, -1.2, 0.6, 0.8, 0, 0, TAU);
+      g.fill();
+    }
+
+    // Mandibles: curved pincers meeting at the front
+    g.strokeStyle = c.accent;
+    g.lineCap = 'round';
+    for (let side = -1; side <= 1; side += 2) {
+      const bite = Math.sin(phase * 0.8) * 0.6;
+      g.lineWidth = 2.1;
+      g.beginPath();
+      g.moveTo(side * 3.6, -4.2);
+      g.quadraticCurveTo(side * (6.2 + bite), -7.4, side * (1.8 + bite * 0.5), -9.2);
+      g.stroke();
+    }
+    g.restore();
+  }
+
+  /* Three jointed legs per side: thick femur, thin tibia, tiny tarsus. */
+  function antLegs(g, phase, c) {
+    const rows = [
+      { y: -5.5, a: -1.05, f: 10, t: 13 },
+      { y: -1.0, a: -0.20, f: 11, t: 15 },
+      { y: 3.5, a: 0.55, f: 10, t: 14 }
+    ];
+    g.lineCap = 'round';
+    for (let side = -1; side <= 1; side += 2) {
+      rows.forEach((leg, i) => {
+        const sw = Math.sin(phase + i * 2.1 + (side > 0 ? Math.PI : 0)) * 0.24;
+        const a = leg.a + sw;
+        const hipX = side * 3.2, hipY = leg.y;
+        const kneeX = hipX + side * Math.cos(a) * leg.f;
+        const kneeY = hipY + Math.sin(a) * leg.f - 3.5;
+        const footA = a + 0.85 + sw * 0.6;
+        const footX = kneeX + side * Math.cos(footA) * leg.t * 0.8;
+        const footY = kneeY + Math.sin(footA) * leg.t + 3;
+
+        g.strokeStyle = c.accent;
+        g.lineWidth = 2.5;
+        g.beginPath();
+        g.moveTo(hipX, hipY);
+        g.lineTo(kneeX, kneeY);
+        g.stroke();
+
+        g.strokeStyle = c.limb;
+        g.lineWidth = 1.6;
+        g.beginPath();
+        g.moveTo(kneeX, kneeY);
+        g.lineTo(footX, footY);
+        g.stroke();
+
+        g.lineWidth = 1.0;
+        g.beginPath();
+        g.moveTo(footX, footY);
+        g.lineTo(footX + side * 2.6, footY + 2.6);
+        g.stroke();
+      });
+    }
+  }
+
+  /* Elbowed antennae: a long scape, then a bend into the funiculus. */
+  function elbowedAntennae(g, phase, color) {
+    g.strokeStyle = color;
+    g.lineCap = 'round';
+    for (let side = -1; side <= 1; side += 2) {
+      const sw = Math.sin(phase * 1.4 + side * 1.2) * 0.22;
+      const elbowX = side * (6.4 + sw * 2);
+      const elbowY = -19;
+      g.lineWidth = 1.8;
+      g.beginPath();
+      g.moveTo(side * 2.4, -14.5);
+      g.lineTo(elbowX, elbowY);
+      g.stroke();
+      g.lineWidth = 1.4;
+      g.beginPath();
+      g.moveTo(elbowX, elbowY);
+      g.quadraticCurveTo(elbowX + side * 2, elbowY - 5, side * (3.4 + sw * 4), elbowY - 8.5);
+      g.stroke();
+    }
   }
 
   function drawBeetle(g, L, phase, c) {

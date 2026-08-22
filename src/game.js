@@ -14,6 +14,7 @@
   const MAX_LIVES = 5;
   const BUBBLE_SCORE = 400;       // 1UP bubbles only start appearing here
   const BUBBLE_GAP = [22, 40];    // seconds between bubbles
+  const GRACE = 0.9;              // seconds of safety after losing a life
 
   class Game {
     constructor(canvas) {
@@ -148,6 +149,7 @@
       this.bubbleTimer = rand(BUBBLE_GAP[0], BUBBLE_GAP[1]);
       this.scorePop = 0;
       this.danger = 0;
+      this.grace = 0;
     }
 
     showMenu() {
@@ -344,14 +346,20 @@
 
     breakCombo() { this.combo = 0; this.multiplier = 1; }
 
+    /* One life at a time: after any loss there is a short grace window, so a
+       panicked double-tap on two wasps - or a bug slipping out the moment you
+       get stung - cannot take two lives in the same breath. */
     loseLife(silent) {
+      if (this.grace > 0) return;
+
       this.lives -= 1;
       this.effects.kick(9);
       if (!silent) {
         this.effects.screenFlash('#8a1608', 0.3);
         A.lifeLost();
       }
-      if (this.lives <= 0) { this.lives = 0; this.gameOver(); }
+      if (this.lives <= 0) { this.lives = 0; this.gameOver(); return; }
+      this.grace = GRACE;
     }
 
     // ---------------------------------------------------------------- update
@@ -373,6 +381,7 @@
       const live = this.state === 'playing';
       if (live) this.elapsed += dt;
       this.scorePop = Math.max(0, this.scorePop - dt * 3.5);
+      this.grace = Math.max(0, this.grace - dt);
 
       this.spawnTimer -= dt;
       let aliveCount = 0;
