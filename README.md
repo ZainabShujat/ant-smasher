@@ -4,111 +4,140 @@ A browser recreation of the classic tap-the-bugs arcade game. Plain HTML, CSS,
 JavaScript and Canvas — no frameworks, no build step, no backend.
 
 All artwork is generated procedurally at runtime (wood planks, HUD strip and the
-insects themselves are drawn with Canvas paths), so the repo ships no third-party
-assets.
+insects themselves are drawn with Canvas paths) and every sound is synthesised
+with the Web Audio API, so the repo ships no third-party assets.
 
 ## Run it
 
 https://zainabshujat.github.io/ant-smasher/
 
+Locally, any static server works — for example `python -m http.server 5173`,
+then open <http://localhost:5173>.
+
 ## Status
-
-**Phases 1 and 2 complete, plus the main menu.**
-
-- Wooden plank play surface + wooden HUD strip (score, combo, pause, 3 lives)
-- Main menu with leaf buttons (play / scores / how to play) over a live
-  background of crawling ants
-- Five species, each with its own speed, points, toughness and splat colour:
-
-  | Bug | Points | Hits | Notes |
-  |---|---|---|---|
-  | Ant | 1 | 1 | the staple target |
-  | Fast ant | 2 | 1 | small, quick, weaves |
-  | Soldier ant | 3 | 2 | large and slow |
-  | Beetle | 3 | 2 | armoured, green splat |
-  | **Wasp** | — | — | **never smash it — costs a life** |
-
-- The wasp is built for instant recognition on a small screen: ~1.7x-2.2x the
-  size of a normal ant, hazard glow, radiating yellow bristles, four spread
-  wings, banded abdomen and a stinger, plus erratic darting flight (fast darts
-  in near-arbitrary directions, twitchy hovers, sudden reversals) that looks
-  nothing like an ant crawl. It leaves on its own after ~7 s
-- Wasp uses a strict hitbox while targets get a forgiving one, so a tap aimed
-  at an ant beside a wasp can never be misread as a wasp hit
-- Squash animation (~200 ms), debris particles, score popups, screen shake,
-  red screen flash and a spin-away reaction when the wasp is hit
-- Splat marks hold for ~3 s then fade out over ~4 s (max 44 on screen), so the
-  plank never fills up with stains
-- Combo counter: every 3 consecutive kills raises the multiplier, up to x5.
-  A miss, a wasp hit or an escaped ant breaks it
-- Lives lost when an ant escapes off the bottom or the wasp is smashed;
-  game over at zero lives, with restart and main-menu buttons
-- Difficulty ramps: spawn rate, speed, simultaneous bugs and the odds of the
-  nastier species all grow over time
-
-- Synthesised audio (Web Audio, no sound files): angry wasp sting, life lost,
-  combo blips, game over, UI clicks. Sound and vibration toggles live behind
-  the menu gear and persist
-- The squish deliberately has **no sharp transient and no low boom** - a click
-  plus a thump is what makes a synthesised hit read as a gunshot. Instead it is
-  all mid-range and soft-edged: a narrow resonance gliding 880 Hz down to
-  ~185 Hz with its amplitude fluttering (the gurgle), a thinner squeak on top,
-  lowpassed air being squeezed out, and a few dull spatters afterwards - the
-  whole thing routed through a 2.4 kHz lowpass so nothing can crack. Measured
-  high-frequency energy ratio 0.01 vs 0.35 for a click-and-thump hit
-- Every species squishes differently - fast ants are high, thin and quick;
-  soldier ants are low, long and gooey; beetles crackle before they burst:
-
-  | Bug | length | avg pitch | texture peaks |
-  |---|---|---|---|
-  | Fast ant | 203 ms | 1106 Hz | 8 |
-  | Ant | 208 ms | 752 Hz | 11 |
-  | Beetle | 262 ms | 584 Hz | 12 |
-  | Soldier ant | 290 ms | 412 Hz | 12 |
-
-- Wetness comes from four texture layers on top of the main squelch: a damped
-  feedback comb (the hollow, liquid ring of a small cavity), an LFO wobbling
-  the resonant frequency so the pitch slides like moving liquid, scattered
-  bubble grains bursting through the body of the sound, and dull spatter
-  landing afterwards. Armoured bugs add dry chitin grains before the burst
-- Phone feel: 3-2-1 countdown before the first bug, score that pops on every
-  hit, red danger glow along the bottom edge when a bug is about to escape or
-  you are on your last life, haptic buzz per event, bigger tap forgiveness on
-  touch devices (22px vs 14px), HUD that scales with screen height, safe-area
-  insets, `100dvh` and locked scrolling / zoom / rubber-banding
 
 Classic mode is feature-complete. Not yet built: custom photo mode.
 
+### Bugs
+
+| Bug | Points | Hits | Behaviour |
+|---|---|---|---|
+| Ant | 1 | 1 | the staple target, wandering crawl |
+| Fast ant | 2 | 1 | small, quick, weaves |
+| Housefly | 2 | 1 | darts and hovers, red compound eyes |
+| Mosquito | 3 | 1 | tiny, spindly, very fast |
+| Soldier ant | 3 | 2 | large and slow |
+| Beetle | 3 | 2 | armoured, green splat |
+| Cockroach | 4 | 2 | scuttles in bursts, then freezes |
+| Spider | 6 | 3 | eight legs, dashes and stops |
+| **Wasp** | — | — | **never smash it — costs a life** |
+| 1UP bubble | — | 1 | green floating bonus, see below |
+
+Species ramp in with difficulty: pure ants for the first ~15 s, then fast ants,
+flies and wasps, then soldiers, mosquitoes and beetles, and finally roaches and
+spiders once things are properly chaotic.
+
+### Rules
+
+- Lives start at 3 and cap at 5. You lose one when a bug escapes off the bottom
+  or when you smash the wasp; you gain one by popping a 1UP bubble
+- **1UP bubble**: past 400 points a glowing green bubble drifts in every 22–40 s,
+  but only while you are below 5 lives and only one at a time. Popping it grants
+  a life; letting it float past costs nothing and it never breaks your combo
+- Combo: every 3 consecutive kills raises the multiplier, up to x5. A miss, a
+  wasp hit or an escaped bug breaks it
+- Difficulty ramps: spawn rate, speed, simultaneous bugs and the odds of the
+  nastier species all grow over time
+
+### The wasp
+
+Built for instant recognition on a small screen: ~1.7x–2.2x the size of a normal
+ant, hazard glow, radiating yellow bristles, four spread wings, banded abdomen
+and a stinger, plus erratic darting flight (fast darts in near-arbitrary
+directions, twitchy hovers, sudden reversals) that looks nothing like a crawl.
+It leaves on its own after ~7 s. Targets get a forgiving hitbox while the wasp
+gets a strict one, so a tap aimed at an ant beside a wasp can never be misread.
+
+### Feedback
+
+- Squash animation (~200 ms), then the flattened body **stays on the wood for
+  ~10 s** (full opacity for 7.5 s, then a 3 s fade) and piles up with everything
+  else you have killed
+- Big splatter: a ragged blob, five tapering streaks and sixteen thrown
+  droplets, in each species' own colour, on the same ~10 s life
+- Score pops, combo readout, screen shake, red screen flash on damage, and a red
+  danger glow along the bottom edge when a bug is about to escape
+
+### Audio
+
+Everything is synthesised — no sound files. The squish deliberately has **no
+sharp transient and no low boom**; a click plus a thump is what makes a
+synthesised hit read as a gunshot. Instead it is mid-range and soft-edged: a
+narrow resonance gliding downward with its amplitude fluttering (the gurgle), a
+thinner squeak on top, lowpassed air being squeezed out, and dull spatters
+afterwards — all routed through a lowpass bus so nothing can crack. Measured
+high-frequency energy ratio 0.01, versus 0.35 for a click-and-thump hit.
+
+Wetness comes from four texture layers: a damped feedback comb (the hollow ring
+of a small cavity), an LFO wobbling the resonant frequency so the pitch slides
+like moving liquid, bubble grains bursting through the body of the sound, and
+spatter landing afterwards. Armoured bugs add dry chitin grains before the burst.
+
+Every species squishes differently:
+
+| Bug | length | avg pitch |
+|---|---|---|
+| Mosquito | ~120 ms | highest, thinnest |
+| Fast ant | 203 ms | 1106 Hz |
+| Ant | 208 ms | 752 Hz |
+| Beetle | 262 ms | 584 Hz |
+| Soldier ant | 290 ms | 412 Hz |
+
+Plus a wasp sting, life lost, combo blips, a four-note 1UP rise, game over and
+UI clicks. Sound and vibration toggles live behind the menu gear and persist.
+
+### Phone feel
+
+3-2-1 countdown before the first bug, haptic buzz per event, bigger tap
+forgiveness on touch devices (22px vs 14px), HUD that scales with screen height,
+safe-area insets, `100dvh`, and locked scrolling / zoom / rubber-banding.
+
 ## Performance
 
-Body gradients are cached per sprite (they live in fixed local space), so a
-frame with 30 mixed insects costs ~3.9 ms on a 375x812 viewport - roughly a
-quarter of the 60fps budget. Splats are capped at 44 and expire; particles are
-short-lived; nothing per-insect touches the DOM.
+Everything that lingers is pre-baked into a cached sprite and blitted, rather
+than re-pathed every frame:
+
+- **Corpses** share one sprite per species + size bucket, cropped tight to the
+  flattened body (a square canvas would be ~90% empty pixels, and blit cost is
+  pixel area). Variety comes from rotation and random mirroring
+- **Splats** use five random baked variants per colour and size bucket
+- **Body gradients** are cached per sprite, since they live in fixed local space
+
+Measured draw time per frame at a 375x812 viewport:
+
+| Scene | Before baking | Now |
+|---|---|---|
+| 12 live bugs + 40 stains (busy late game) | 4.88 ms | **1.43 ms** |
+| 16 live bugs + 80 stains (both caps) | 41.6 ms | **2.93 ms** |
 
 ## Structure
 
 ```text
 ant-smash/
-├── index.html        markup + overlays (game over, pause)
+├── index.html        markup + overlays (menu, options, game over, pause)
 ├── style.css         overlay / button styling, full-viewport canvas
 ├── src/
 │   ├── utils.js      math, RNG and noise helpers
 │   ├── wood.js       procedural plank + HUD strip textures
-│   ├── audio.js      Web Audio synthesis, mute + haptics settings
-│   ├── insects.js    insect type registry, entity class, ant rendering
-│   ├── effects.js    particles, splat layer, score popups, screen shake
+│   ├── audio.js      Web Audio synthesis, per-species squish, settings
+│   ├── insects.js    type registry, entity class, sprite + corpse rendering
+│   ├── effects.js    particles, splats, corpses, popups, shake, flash
 │   ├── input.js      mouse/touch normalisation into canvas coordinates
 │   └── game.js       game state, spawning, collision, scoring, HUD, loop
 └── assets/           reserved for optional future art/audio
 ```
 
-Adding an insect type means adding one entry to `TYPES` in `src/insects.js`
-(points, hp, size, speed, colours, and whether it is a valid target).
-
-## Notes
-
-- Splat marks are baked into a dedicated offscreen canvas, so old marks cost one
-  blit per frame rather than growing the draw list.
-- Rendering is DPR-aware and re-generates textures on resize/orientation change.
-- The page disables scrolling/zoom gestures so mobile taps never scroll the page.
+Adding an insect means one entry in `TYPES` in `src/insects.js` (points, hp,
+size, speed, colours, splat colour, movement style, and whether it is a valid
+target), one draw function, one weight in `weightsFor`, and one sound profile in
+`SPECIES` in `src/audio.js`.

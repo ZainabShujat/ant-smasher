@@ -34,6 +34,30 @@
       bubbles: 7, drops: 4, crackle: 7, heavy: true
     }
   };
+  SPECIES.housefly = {
+    // Juicy for its size - a fly is mostly liquid.
+    pitch: 1.15, dur: 0.20, gain: 0.95, cutoff: 2500, wet: 1.25, body: 0.9,
+    f0: 950, f1: 240, q: 14, attack: 0.014, flutter: [28, 54],
+    bubbles: 7, drops: 3, crackle: 0
+  };
+  SPECIES.mosquito = {
+    // Barely anything there: a thin, high pop.
+    pitch: 1.6, dur: 0.12, gain: 0.8, cutoff: 2600, wet: 0.7, body: 0.5,
+    f0: 1150, f1: 420, q: 20, attack: 0.008, flutter: [40, 70],
+    bubbles: 3, drops: 2, crackle: 0
+  };
+  SPECIES.cockroach = {
+    // Hard shell, wet inside - the nastiest one.
+    pitch: 0.75, dur: 0.32, gain: 1.15, cutoff: 2400, wet: 1.3, body: 1.2,
+    f0: 720, f1: 175, q: 17, attack: 0.016, flutter: [18, 38],
+    bubbles: 8, drops: 5, crackle: 9, heavy: true
+  };
+  SPECIES.spider = {
+    // Low, gooey, and it takes three hits to get here.
+    pitch: 0.68, dur: 0.34, gain: 1.15, cutoff: 2000, wet: 1.4, body: 1.3,
+    f0: 690, f1: 160, q: 13, attack: 0.022, flutter: [15, 30],
+    bubbles: 10, drops: 6, crackle: 2, heavy: true
+  };
   SPECIES.bigAnt.heavy = true;
 
   class Audio {
@@ -43,10 +67,14 @@
       this.noise = null;
       this.enabled = localStorage.getItem(SOUND_KEY) !== '0';
       this.haptics = localStorage.getItem(HAPTIC_KEY) !== '0';
+      this.gestured = false;
     }
 
     /* Called from the first user gesture. Safe to call repeatedly. */
     unlock() {
+      // Browsers reject vibration until the page has had a real gesture, so
+      // remember that one has happened rather than calling and being refused.
+      this.gestured = true;
       if (!this.ctx) {
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC) return;
@@ -77,7 +105,7 @@
     }
 
     buzz(pattern) {
-      if (this.haptics && navigator.vibrate) {
+      if (this.haptics && this.gestured && navigator.vibrate) {
         try { navigator.vibrate(pattern); } catch (e) { /* unsupported */ }
       }
     }
@@ -365,6 +393,15 @@
       this.buzz(70);
       if (!this.ready) return;
       this._tone('square', 400, 120, 0.28, 0.22);
+    }
+
+    /* 1UP: a bright, unmistakably good four-note rise. */
+    oneUp() {
+      this.buzz([15, 40, 15]);
+      if (!this.ready) return;
+      [523, 659, 784, 1047].forEach((f, i) => {
+        this._tone('square', f, f * 1.01, 0.13, 0.16, i * 0.075);
+      });
     }
 
     combo(level) {

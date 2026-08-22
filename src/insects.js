@@ -76,6 +76,16 @@
       splat: '#2a1030',
       colors: { body: '#1a1218', shine: '#6b5a68', limb: '#120c10', accent: '#5a2038' }
     },
+    lifeBubble: {
+      // Not an insect: a floating green bubble worth an extra life. Appears
+      // only deep into a run. Letting it drift past costs nothing.
+      id: 'lifeBubble', label: '1UP', shape: 'bubble',
+      target: true, bonus: 'life', points: 0, hp: 1,
+      size: [58, 70], speed: [42, 62],
+      wander: 0.5, sway: 0.5, upright: true,
+      splat: '#2fbf22',
+      colors: { body: '#3fd41f', shine: '#d6ffb0', limb: '#1c7a10', accent: '#7bff4a' }
+    },
     wasp: {
       // NOT a target. Smashing this costs a life.
       // Deliberately the biggest thing on screen (~1.9x a normal ant), with a
@@ -249,7 +259,8 @@
       this.x += this.vx * dt;
       this.y += this.vy * dt;
 
-      this.rotation = Math.atan2(this.vy, this.vx) + Math.PI / 2; // sprite is drawn nose-up
+      // Most bugs face the way they travel; the bubble always stays upright.
+      this.rotation = this.def.upright ? 0 : Math.atan2(this.vy, this.vx) + Math.PI / 2;
       this.walkPhase += dt * (6 + sp * 0.09);
     }
 
@@ -338,6 +349,7 @@
 
     kill() {
       if (this.state !== 'alive') return false;
+      this.wasSmashed = true;      // earns a corpse on the wood
       this.state = 'dying';
       this.stateTime = 0;
       this.alpha = 1;
@@ -623,6 +635,326 @@
     g.fill();
   }
 
+  function drawShape(g, shape, size, phase, colors) {
+    if (shape === 'wasp') drawWasp(g, size, phase, colors);
+    else if (shape === 'beetle') drawBeetle(g, size, phase, colors);
+    else if (shape === 'fly') drawFly(g, size, phase, colors);
+    else if (shape === 'mosquito') drawMosquito(g, size, phase, colors);
+    else if (shape === 'roach') drawRoach(g, size, phase, colors);
+    else if (shape === 'spider') drawSpider(g, size, phase, colors);
+    else if (shape === 'bubble') drawBubble(g, size, phase, colors);
+    else drawAnt(g, size, phase, colors);
+  }
+
+  /* Floating 1UP bubble: glossy green orb that wobbles as it drifts. */
+  function drawBubble(g, L, phase, c) {
+    const s = L / 46;
+    g.scale(s, s);
+    const wob = 1 + Math.sin(phase * 0.5) * 0.05;
+    g.scale(wob, 2 - wob);
+
+    g.save();
+    g.globalAlpha *= 0.25;
+    g.fillStyle = '#000';
+    g.beginPath();
+    g.ellipse(2, 4, 20, 19, 0, 0, TAU);
+    g.fill();
+    g.restore();
+
+    // Soft glow so it reads as a pickup, not a bug
+    const halo = g.createRadialGradient(0, 0, 8, 0, 0, 30);
+    halo.addColorStop(0, 'rgba(120,255,90,.30)');
+    halo.addColorStop(1, 'rgba(90,220,60,0)');
+    g.fillStyle = halo;
+    g.beginPath();
+    g.arc(0, 0, 30, 0, TAU);
+    g.fill();
+
+    const body = g.createRadialGradient(-6, -8, 2, 0, 0, 21);
+    body.addColorStop(0, c.shine);
+    body.addColorStop(0.35, c.accent);
+    body.addColorStop(0.8, c.body);
+    body.addColorStop(1, c.limb);
+    g.fillStyle = body;
+    g.beginPath();
+    g.ellipse(0, 0, 20, 19, 0, 0, TAU);
+    g.fill();
+
+    g.strokeStyle = 'rgba(255,255,255,.45)';
+    g.lineWidth = 1.6;
+    g.beginPath();
+    g.ellipse(0, 0, 20, 19, 0, 0, TAU);
+    g.stroke();
+
+    // Highlight
+    g.fillStyle = 'rgba(255,255,255,.55)';
+    g.beginPath();
+    g.ellipse(-7, -9, 5.5, 3.8, -0.5, 0, TAU);
+    g.fill();
+
+    // Label
+    g.font = 'bold 15px "Trebuchet MS", Verdana, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.lineWidth = 3.5;
+    g.strokeStyle = 'rgba(15,70,10,.9)';
+    g.strokeText('1UP', 0, 1);
+    g.fillStyle = '#ffffff';
+    g.fillText('1UP', 0, 1);
+  }
+
+  /* Housefly: stout grey body, huge red compound eyes, two clear wings. */
+  function drawFly(g, L, phase, c) {
+    g.scale(L / 46, L / 46);
+    shadow(g, 12, 16);
+
+    g.save();
+    g.globalAlpha *= 0.45;
+    g.fillStyle = '#dfe8f2';
+    for (let side = -1; side <= 1; side += 2) {
+      const flap = Math.sin(phase + (side > 0 ? 0.9 : 0)) * 0.18;
+      g.save();
+      g.translate(side * 3, -1);
+      g.rotate(side * (0.5 + flap));
+      g.beginPath();
+      g.ellipse(side * 12, 3, 13, 5, side * 0.25, 0, TAU);
+      g.fill();
+      g.restore();
+    }
+    g.restore();
+
+    legs(g, phase * 0.25, c.limb, [
+      { y: -2, len: 13, spread: 1.0, base: 0.0 },
+      { y: 3, len: 14, spread: 1.2, base: 0.45 },
+      { y: 8, len: 13, spread: 1.0, base: 0.95 }
+    ]);
+
+    segment(g, 0, 10, 8.0, 10.5, c.body, c.shine);   // abdomen
+    segment(g, 0, -1, 7.2, 7.0, c.accent, c.shine);  // thorax
+    // Thorax pinstripes
+    g.strokeStyle = 'rgba(0,0,0,.45)';
+    g.lineWidth = 1;
+    for (let i = -1; i <= 1; i++) {
+      g.beginPath();
+      g.moveTo(i * 2.6, -7); g.lineTo(i * 2.6, 5);
+      g.stroke();
+    }
+    segment(g, 0, -10, 5.6, 5.0, c.body, c.shine);   // head
+
+    // Big compound eyes
+    for (let side = -1; side <= 1; side += 2) {
+      const eg = g.createRadialGradient(side * 4 - 1, -12, 0.5, side * 4, -11, 4.6);
+      eg.addColorStop(0, '#ff8a6a');
+      eg.addColorStop(0.6, '#c02b12');
+      eg.addColorStop(1, '#5e1206');
+      g.fillStyle = eg;
+      g.beginPath();
+      g.ellipse(side * 4, -11, 4.4, 5.0, side * 0.2, 0, TAU);
+      g.fill();
+    }
+    gloss(g, -3, 7, 2.2, 4);
+  }
+
+  /* Mosquito: tiny, spindly, long proboscis and very long legs. */
+  function drawMosquito(g, L, phase, c) {
+    g.scale(L / 46, L / 46);
+    shadow(g, 8, 14);
+
+    g.save();
+    g.globalAlpha *= 0.35;
+    g.fillStyle = '#e6eef7';
+    for (let side = -1; side <= 1; side += 2) {
+      const flap = Math.sin(phase * 1.3 + (side > 0 ? 1.2 : 0)) * 0.3;
+      g.save();
+      g.translate(side * 2, 0);
+      g.rotate(side * (0.35 + flap));
+      g.beginPath();
+      g.ellipse(side * 9, 6, 11, 3.0, side * 0.3, 0, TAU);
+      g.fill();
+      g.restore();
+    }
+    g.restore();
+
+    // Absurdly long legs, the mosquito silhouette
+    g.strokeStyle = c.limb;
+    g.lineCap = 'round';
+    g.lineWidth = 1.3;
+    for (let side = -1; side <= 1; side += 2) {
+      [[-2, 26, -0.5], [3, 30, 0.25], [8, 27, 1.0]].forEach((leg, i) => {
+        const sw = Math.sin(phase * 0.3 + i * 2 + (side > 0 ? Math.PI : 0)) * 0.12;
+        const a = leg[2] + sw;
+        g.beginPath();
+        g.moveTo(side * 1.5, leg[0]);
+        g.quadraticCurveTo(side * Math.cos(a) * leg[1] * 0.7, leg[0] + Math.sin(a) * leg[1] * 0.2 - 9,
+          side * Math.cos(a - 0.4) * leg[1], leg[0] + Math.sin(a - 0.4) * leg[1] * 0.85 + 6);
+        g.stroke();
+      });
+    }
+
+    // Slender segmented abdomen angled off the body
+    g.save();
+    g.rotate(0.18);
+    segment(g, 0, 13, 3.4, 12, c.body, c.shine);
+    g.strokeStyle = 'rgba(0,0,0,.5)';
+    g.lineWidth = 0.8;
+    for (let i = 0; i < 4; i++) {
+      g.beginPath();
+      g.moveTo(-3.2, 5 + i * 4.6); g.lineTo(3.2, 5 + i * 4.6);
+      g.stroke();
+    }
+    g.restore();
+
+    segment(g, 0, -1, 3.8, 4.6, c.accent, c.shine);   // thorax
+    segment(g, 0, -8, 3.4, 3.2, c.body, c.shine);     // head
+
+    // Proboscis
+    g.strokeStyle = '#1d150e';
+    g.lineWidth = 1.5;
+    g.beginPath();
+    g.moveTo(0, -11); g.lineTo(0, -20);
+    g.stroke();
+    antennae(g, phase * 0.2, c.limb, -10, 9);
+    eyes(g, 2.2, -9);
+  }
+
+  /* Cockroach: flat glossy shield, long sweeping antennae, spiny legs. */
+  function drawRoach(g, L, phase, c) {
+    g.scale(L / 46, L / 46);
+    shadow(g, 13, 19);
+
+    legs(g, phase, c.limb, [
+      { y: -5, len: 18, spread: 1.25, base: -0.45 },
+      { y: 1, len: 19, spread: 1.5, base: 0.15 },
+      { y: 7, len: 18, spread: 1.25, base: 0.85 }
+    ]);
+
+    // Very long antennae sweeping forward
+    g.strokeStyle = c.limb;
+    g.lineWidth = 1.5;
+    for (let side = -1; side <= 1; side += 2) {
+      const sw = Math.sin(phase * 1.1 + side * 1.4) * 0.3;
+      g.beginPath();
+      g.moveTo(side * 2, -12);
+      g.quadraticCurveTo(side * (14 + sw * 8), -24, side * (7 + sw * 14), -36);
+      g.stroke();
+    }
+
+    segment(g, 0, -10, 5.4, 4.6, c.body, c.shine);    // head
+    segment(g, 0, -4, 9.6, 6.2, c.accent, c.shine);   // pronotum shield
+
+    // Flat wing case covering the abdomen
+    segment(g, 0, 9, 10.4, 14, c.body, c.shine);
+    g.strokeStyle = 'rgba(0,0,0,.6)';
+    g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(0, -3); g.lineTo(0, 22); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.10)';
+    g.lineWidth = 0.9;
+    for (let side = -1; side <= 1; side += 2) {
+      g.beginPath();
+      g.moveTo(side * 4, -1);
+      g.quadraticCurveTo(side * 9, 9, side * 4, 20);
+      g.stroke();
+    }
+    gloss(g, -4.5, 3, 3.2, 6.5);
+  }
+
+  /* Spider: eight jointed legs, bulbous abdomen, cluster of eyes. */
+  function drawSpider(g, L, phase, c) {
+    g.scale(L / 46, L / 46);
+    shadow(g, 12, 14);
+
+    // Eight legs, four a side, jointed with a raised knee
+    g.strokeStyle = c.limb;
+    g.lineCap = 'round';
+    for (let side = -1; side <= 1; side += 2) {
+      for (let i = 0; i < 4; i++) {
+        const base = -0.85 + i * 0.62;
+        const sw = Math.sin(phase + i * 1.7 + (side > 0 ? Math.PI : 0)) * 0.22;
+        const a = base + sw;
+        const len = 24 - Math.abs(i - 1.5) * 2.5;
+        const kneeX = side * Math.cos(a) * len * 0.6;
+        const kneeY = -2 + Math.sin(a) * len * 0.55 - 7;
+        const endX = side * Math.cos(a + 0.15) * len * 1.15;
+        const endY = -2 + Math.sin(a + 0.15) * len * 0.9 + 5;
+        g.lineWidth = 2.3;
+        g.beginPath();
+        g.moveTo(side * 3, -2);
+        g.quadraticCurveTo(kneeX, kneeY, endX, endY);
+        g.stroke();
+      }
+    }
+
+    segment(g, 0, 9, 11, 12.5, c.body, c.shine);     // abdomen
+    segment(g, 0, -5, 7.4, 7.0, c.accent, c.shine);  // cephalothorax
+
+    // Marking on the abdomen
+    g.fillStyle = 'rgba(255,255,255,.16)';
+    g.beginPath();
+    g.moveTo(0, 2); g.lineTo(4, 10); g.lineTo(0, 18); g.lineTo(-4, 10);
+    g.closePath();
+    g.fill();
+
+    // Eye cluster
+    g.fillStyle = 'rgba(255,255,255,.6)';
+    [[-3.4, -9, 1.5], [3.4, -9, 1.5], [-1.4, -11, 1.0], [1.4, -11, 1.0]].forEach((e) => {
+      g.beginPath();
+      g.ellipse(e[0], e[1], e[2], e[2] * 1.1, 0, 0, TAU);
+      g.fill();
+    });
+
+    // Fangs
+    g.strokeStyle = '#000';
+    g.lineWidth = 1.6;
+    for (let side = -1; side <= 1; side += 2) {
+      g.beginPath();
+      g.moveTo(side * 2.5, -10);
+      g.quadraticCurveTo(side * 4, -13, side * 2, -15);
+      g.stroke();
+    }
+    gloss(g, -4, 5, 2.4, 4.6);
+  }
+
+  /* Bake a flattened corpse sprite. Corpses linger for ~10s and pile up, so
+     two things matter: the canvas is cropped tight to the squashed body (a
+     square canvas would be ~90% empty pixels, and blit cost is pixel area),
+     and sprites are shared per species + size bucket rather than one canvas
+     per kill. Variety comes from rotation and random mirroring at draw time. */
+  const corpseCache = new Map();
+
+  function renderCorpse(ins, dpr) {
+    const bucket = Math.max(12, Math.round(ins.size / 8) * 8);
+    const key = ins.type + '|' + bucket + '|' + dpr;
+    let sprite = corpseCache.get(key);
+    if (sprite) return sprite;
+
+    const W = Math.ceil(bucket * 2.4);
+    const H = Math.ceil(bucket * 0.85);
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(W * dpr);
+    c.height = Math.ceil(H * dpr);
+    const g = c.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.translate(W / 2, H / 2);
+
+    // Splattered outward and pressed flat into the wood.
+    g.save();
+    g.scale(1.7, 0.26);
+    drawShape(g, ins.def.shape, bucket, ins.walkPhase, ins.def.colors);
+    g.restore();
+
+    // Dead tint: darker, with a wash of the species' own splat colour.
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = 'rgba(0,0,0,.45)';
+    g.fillRect(-W / 2, -H / 2, W, H);
+    g.globalAlpha = 0.35;
+    g.fillStyle = ins.def.splat;
+    g.fillRect(-W / 2, -H / 2, W, H);
+
+    sprite = { canvas: c, w: W, h: H };
+    corpseCache.set(key, sprite);
+    return sprite;
+  }
+
   function eyes(g, dx, y) {
     g.fillStyle = 'rgba(255,255,255,.55)';
     for (let side = -1; side <= 1; side += 2) {
@@ -639,5 +971,5 @@
     g.fill();
   }
 
-  global.Insects = { TYPES, Insect, pickType, weightsFor };
+  global.Insects = { TYPES, Insect, pickType, weightsFor, renderCorpse, drawShape };
 })(window);

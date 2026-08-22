@@ -11,6 +11,9 @@
   const STORAGE_KEY = 'antsmash.highscore';
   const ESCAPE_MARGIN = 30;
   const COUNTDOWN = 2.4;
+  const MAX_LIVES = 5;
+  const BUBBLE_SCORE = 400;       // 1UP bubbles only start appearing here
+  const BUBBLE_GAP = [22, 40];    // seconds between bubbles
 
   class Game {
     constructor(canvas) {
@@ -115,6 +118,7 @@
       this.hud = Math.round(clamp(h * 0.075, 46, 68));
       this.hudFont = Math.round(this.hud * 0.55);
 
+      this.effects.dpr = dpr;
       this.plank = global.Wood.makePlankTexture(w * dpr, h * dpr);
       this.hudTex = global.Wood.makeHudTexture(w * dpr, this.hud * dpr);
 
@@ -141,6 +145,7 @@
       this.bestCombo = 0;
       this.multiplier = 1;
       this.spawnTimer = 0.6;
+      this.bubbleTimer = rand(BUBBLE_GAP[0], BUBBLE_GAP[1]);
       this.scorePop = 0;
       this.danger = 0;
     }
@@ -226,10 +231,10 @@
       return Math.max(3, Math.round((3 + this.difficulty * 1.5) * room));
     }
 
-    spawn() {
+    spawn(forcedType) {
       const d = this.difficulty;
       // The menu background only ever shows harmless ants.
-      const typeId = this.state === 'menu' ? 'ant' : pickType(d);
+      const typeId = forcedType || (this.state === 'menu' ? 'ant' : pickType(d));
       const x = rand(this.world.left + 34, this.world.right - 34);
       const y = this.world.top - rand(20, 70);
       const ins = new Insect(typeId, x, y, d);
@@ -273,6 +278,20 @@
     }
 
     smash(ins) {
+      // The 1UP bubble is popped, not killed: it grants a life and leaves no
+      // corpse, and it neither builds nor breaks the combo.
+      if (ins.def.bonus === 'life') {
+        ins.kill();
+        ins.wasSmashed = false;
+        this.lives = Math.min(MAX_LIVES, this.lives + 1);
+        this.effects.burst(ins.x, ins.y, 26, '#7bff4a');
+        this.effects.popup(ins.x, ins.y - 20, '1UP!', '#b6ff7a', true);
+        this.effects.screenFlash('#2fbf22', 0.3);
+        this.effects.kick(6);
+        A.oneUp();
+        return;
+      }
+
       ins.hp -= 1;
       if (ins.hp > 0) {
         // Tougher bugs take a hit and stagger instead of dying.
@@ -294,8 +313,8 @@
       this.scorePop = 1;
 
       const big = ins.maxHp > 1;
-      this.effects.burst(ins.x, ins.y, big ? 20 : 14, ins.def.splat);
-      this.effects.splat(ins.x, ins.y, ins.hitRadius * 1.05, ins.def.splat);
+      this.effects.burst(ins.x, ins.y, big ? 30 : 22, ins.def.splat);
+      this.effects.splat(ins.x, ins.y, ins.hitRadius * (big ? 2.1 : 1.75), ins.def.splat);
       this.effects.popup(ins.x, ins.y - 14, '+' + gained);
       this.effects.kick(big ? 7 : 4);
       A.smash(ins.type, this.combo);
@@ -363,13 +382,30 @@
         this.spawnTimer = this.spawnInterval();
       }
 
+      // 1UP bubble: a late-game reward, and only if a life is missing.
+      if (live && this.score >= BUBBLE_SCORE) {
+        this.bubbleTimer -= dt;
+        const bubbleOut = this.insects.some((i) => i.type === 'lifeBubble' && i.alive);
+        if (this.bubbleTimer <= 0 && !bubbleOut && this.lives < MAX_LIVES) {
+          this.spawn('lifeBubble');
+          this.bubbleTimer = rand(BUBBLE_GAP[0], BUBBLE_GAP[1]);
+        }
+      }
+
       let nearEdge = false;
       for (let i = this.insects.length - 1; i >= 0; i--) {
         const ins = this.insects[i];
         ins.update(dt, this.world);
 
-        if (ins.dead) { this.insects.splice(i, 1); continue; }
-        if (ins.alive && ins.isTarget && ins.y > this.h - this.dangerBand) nearEdge = true;
+        if (ins.dead) {
+          // A smashed bug leaves a flattened body on the wood for ~10s.
+          if (ins.state === 'dead' && ins.wasSmashed) {
+            this.effects.corpse(global.Insects.renderCorpse(ins, this.dpr), ins.x, ins.y, ins.rotation);
+          }
+          this.insects.splice(i, 1);
+          continue;
+        }
+        if (ins.alive && ins.isTarget && !ins.def.bonus && ins.y > this.h - this.dangerBand) nearEdge = true;
 
         const gone = ins.y > this.h + ESCAPE_MARGIN ||
                      ins.y < -this.h * 0.5 ||
@@ -378,7 +414,8 @@
 
         this.insects.splice(i, 1);
         // Only an escaping *target* costs a life; a wasp leaving is fine.
-        if (live && ins.alive && ins.isTarget && ins.y > this.h) {
+        // A missed bubble simply floats away - no penalty.
+        if (live && ins.alive && ins.isTarget && !ins.def.bonus && ins.y > this.h) {
           this.effects.popup(clamp(ins.x, 40, this.w - 40), this.h - 40, '-1 LIFE', '#ff9a6b');
           this.breakCombo();
           this.loseLife();
@@ -411,6 +448,7 @@
 
       g.drawImage(this.plank, 0, 0, w, h);
       this.effects.drawSplats(g);
+      this.effects.drawCorpses(g);
 
       for (let i = 0; i < this.insects.length; i++) this.insects[i].draw(g);
       this.effects.draw(g);
@@ -496,14 +534,16 @@
       roundRect(g, cx - gap / 2 - bw, cy - bh / 2, bw, bh, 2); g.fill();
       roundRect(g, cx + gap / 2, cy - bh / 2, bw, bh, 2); g.fill();
 
-      // Lives, right - glossy green dots
+      // Lives, right - glossy green dots. Extra lives from 1UP bubbles add
+      // slots rather than overflowing the three the run starts with.
       const rad = Math.round(hud * 0.2);
-      for (let i = 0; i < 3; i++) {
+      const slots = Math.max(3, this.lives);
+      for (let i = 0; i < slots; i++) {
         const x = w - (rad + 8) - i * (rad * 2 + 6);
         const y = hud / 2;
         const on = this.lives > i;
         const cache = g.__gradCache || (g.__gradCache = new Map());
-        const key = 'life' + i + on + rad + w;
+        const key = 'life' + i + on + rad + w + slots;
         let grad = cache.get(key);
         if (!grad) {
           grad = g.createRadialGradient(x - 3, y - 4, 1, x, y, rad);
@@ -528,9 +568,14 @@
     '<p class="hint">Tap every crawling bug before it reaches the bottom.</p>',
     '<p class="row"><span>Ant</span><b>+1</b></p>',
     '<p class="row"><span>Fast ant</span><b>+2</b></p>',
+    '<p class="row"><span>Housefly</span><b>+2</b></p>',
+    '<p class="row"><span>Mosquito</span><b>+3</b></p>',
     '<p class="row"><span>Soldier ant</span><b>+3 &middot; 2 hits</b></p>',
     '<p class="row"><span>Beetle</span><b>+3 &middot; 2 hits</b></p>',
+    '<p class="row"><span>Cockroach</span><b>+4 &middot; 2 hits</b></p>',
+    '<p class="row"><span>Spider</span><b>+6 &middot; 3 hits</b></p>',
     '<p class="warn">NEVER smash the big striped wasp &mdash; it costs a life.</p>',
+    '<p class="hint">Past 400 points a green <b>1UP</b> bubble drifts in now and then. Pop it for an extra life, up to five.</p>',
     '<p class="hint">An ant escaping off the bottom also costs a life. Chain hits to build a combo multiplier, up to x5.</p>'
   ].join('');
 
