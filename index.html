@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#4a2f18">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Ant Smash</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game"></canvas>
+
+    <!-- Main menu: leaf-shaped buttons over the wooden surface -->
+    <div id="menu" class="overlay menu hidden">
+      <button id="btnOptions" class="gear" aria-label="Options">&#9881;</button>
+      <div class="menuInner">
+        <h1 class="logo"><span>Ant</span><em>Smash</em></h1>
+
+        <div class="leaves">
+          <button id="btnPlay" class="leaf leaf-green">play</button>
+          <button id="btnScores" class="leaf leaf-teal">scores</button>
+          <button id="btnHow" class="leaf leaf-gold">how to play</button>
+        </div>
+
+        <p class="bestLine">BEST <b id="menuBest">0</b></p>
+      </div>
+    </div>
+
+    <!-- Scores / how-to panel -->
+    <div id="infoOverlay" class="overlay hidden">
+      <div class="panel">
+        <h1 id="infoTitle">SCORES</h1>
+        <div id="infoBody"></div>
+        <button id="infoClose" class="woodBtn">BACK</button>
+      </div>
+    </div>
+
+    <div id="optionsOverlay" class="overlay hidden">
+      <div class="panel">
+        <h1>OPTIONS</h1>
+        <button id="optSound" class="woodBtn">SOUND: ON</button>
+        <button id="optHaptics" class="woodBtn">VIBRATION: ON</button>
+        <button id="optReset" class="woodBtn small">RESET BEST</button>
+        <button id="optClose" class="woodBtn small">BACK</button>
+      </div>
+    </div>
+
+    <div id="overlay" class="overlay hidden">
+      <div class="panel">
+        <h1 id="ovTitle">GAME OVER</h1>
+        <p id="ovNewBest" class="newBest hidden">NEW BEST!</p>
+        <p class="row"><span>SCORE</span><b id="ovScore">0</b></p>
+        <p class="row"><span>BEST</span><b id="ovBest">0</b></p>
+        <button id="ovBtn" class="woodBtn">PLAY AGAIN</button>
+        <button id="ovMenu" class="woodBtn small">MAIN MENU</button>
+      </div>
+    </div>
+
+    <div id="pauseOverlay" class="overlay hidden">
+      <div class="panel">
+        <h1>PAUSED</h1>
+        <button id="resumeBtn" class="woodBtn">RESUME</button>
+        <button id="restartBtn" class="woodBtn small">RESTART</button>
+        <button id="pauseMenuBtn" class="woodBtn small">MAIN MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="src/utils.js"></script>
+  <script src="src/wood.js"></script>
+  <script src="src/audio.js"></script>
+  <script src="src/insects.js"></script>
+  <script src="src/effects.js"></script>
+  <script src="src/input.js"></script>
+  <script src="src/game.js"></script>
+</body>
+</html>

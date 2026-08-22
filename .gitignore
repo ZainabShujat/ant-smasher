@@ -1,0 +1,21 @@
+# Editor / tooling
+.claude/
+.vscode/
+.idea/
+*.code-workspace
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Dependencies / build output
+node_modules/
+dist/
+build/
+*.log
+npm-debug.log*
+
+# Local env
+.env
+.env.local

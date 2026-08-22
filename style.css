@@ -1,0 +1,225 @@
+:root{
+  --wood-dark:#3d2612;
+  --wood-mid:#8a5a2b;
+  --wood-light:#c89a5e;
+  --ink:#2a1a0c;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{
+  margin:0;padding:0;
+  width:100%;height:100%;
+  height:100dvh;                 /* survives the mobile browser chrome */
+  background:#241408;
+  overflow:hidden;
+  overscroll-behavior:none;
+  touch-action:none;
+  font-family:"Trebuchet MS",Verdana,system-ui,sans-serif;
+  user-select:none;-webkit-user-select:none;
+  -webkit-touch-callout:none;
+  position:fixed;                /* stops iOS rubber-banding the page */
+  inset:0;
+}
+#stage{position:fixed;inset:0;display:block;}
+#game{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair;}
+
+.overlay{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(20,10,4,.62);
+  z-index:5;
+}
+.overlay.hidden{display:none;}
+
+/* ------------------------------------------------------------ main menu */
+.menu{
+  background:linear-gradient(180deg,rgba(20,10,4,.30),rgba(20,10,4,.55));
+  overflow:auto;
+}
+.menuInner{
+  width:min(92vw,520px);
+  padding:18px 10px 26px;
+  text-align:center;
+}
+.logo{
+  margin:0 0 6px;
+  line-height:.92;
+  transform:rotate(-3deg);
+}
+.logo span{
+  display:block;
+  font-family:"Segoe Script","Brush Script MT",cursive;
+  font-size:clamp(46px,15vw,86px);
+  color:#e23b2c;
+  text-shadow:0 0 0 #fff, 3px 3px 0 #7a1409, 0 5px 18px rgba(0,0,0,.55);
+  -webkit-text-stroke:4px #fff8ec;
+  paint-order:stroke fill;
+}
+.logo em{
+  display:block;
+  font-style:normal;
+  font-family:"Segoe Script","Brush Script MT",cursive;
+  font-size:clamp(26px,8vw,44px);
+  color:#e23b2c;
+  -webkit-text-stroke:3px #fff8ec;
+  paint-order:stroke fill;
+  text-shadow:2px 3px 0 #7a1409;
+  margin-top:-6px;
+}
+
+.leaves{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  margin-top:14px;
+}
+/* Leaf-shaped buttons: an SVG mask carves the leaf silhouette out of a
+   coloured gradient, and a second SVG paints the midrib + side veins. */
+.leaf{
+  position:relative;
+  display:flex;align-items:center;justify-content:center;
+  width:min(80vw,320px);
+  min-height:104px;
+  padding:14px 30px;
+  cursor:pointer;
+  font-family:"Segoe Script","Brush Script MT",cursive;
+  font-size:clamp(26px,7vw,38px);
+  color:#fff;
+  text-shadow:0 2px 5px rgba(0,0,0,.55);
+  border:none;
+  background-color:transparent;
+  filter:drop-shadow(0 8px 12px rgba(0,0,0,.5));
+  -webkit-mask-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 120' preserveAspectRatio='none'><path d='M4,72 C64,2 250,-10 316,44 C264,118 76,132 4,72 Z' fill='black'/></svg>");
+  mask-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 120' preserveAspectRatio='none'><path d='M4,72 C64,2 250,-10 316,44 C264,118 76,132 4,72 Z' fill='black'/></svg>");
+  -webkit-mask-size:100% 100%;mask-size:100% 100%;
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  transition:transform .1s ease, filter .1s ease;
+}
+.leaf::after{
+  /* midrib + side veins */
+  content:"";
+  position:absolute;inset:0;
+  pointer-events:none;
+  opacity:.5;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 120' preserveAspectRatio='none'><g stroke='white' fill='none' stroke-linecap='round'><path d='M10,70 C110,44 220,34 312,44' stroke-width='3'/><path d='M60,58 C74,40 92,30 108,24' stroke-width='2'/><path d='M110,52 C124,36 142,26 158,20' stroke-width='2'/><path d='M160,46 C174,32 192,24 208,20' stroke-width='2'/><path d='M210,42 C224,32 240,26 256,24' stroke-width='2'/><path d='M62,60 C78,76 96,88 116,96' stroke-width='2'/><path d='M112,54 C128,72 146,84 166,92' stroke-width='2'/><path d='M162,48 C178,66 196,78 214,84' stroke-width='2'/><path d='M212,44 C226,58 242,68 258,74' stroke-width='2'/></g></svg>");
+  background-size:100% 100%;
+  background-repeat:no-repeat;
+}
+.leaf-green{background-image:radial-gradient(120% 130% at 28% 18%,#6ccf3f,#2c8a20 62%,#14571a);transform:rotate(-5deg);}
+.leaf-teal{background-image:radial-gradient(120% 130% at 28% 18%,#48c2d2,#127886 62%,#0b4d58);transform:rotate(4deg) translateX(9%);}
+.leaf-gold{background-image:radial-gradient(120% 130% at 28% 18%,#f0d445,#bb8f10 62%,#7d5d08);transform:rotate(-3deg) translateX(-7%);font-size:clamp(20px,5.4vw,28px);}
+.leaf-green:active{transform:rotate(-5deg) scale(.95);}
+.leaf-teal:active{transform:rotate(4deg) translateX(9%) scale(.95);}
+.leaf-gold:active{transform:rotate(-3deg) translateX(-7%) scale(.95);}
+.leaf:active{filter:brightness(1.12) drop-shadow(0 4px 8px rgba(0,0,0,.5));}
+
+/* Settings gear, tucked in the corner clear of the notch */
+.gear{
+  position:absolute;
+  top:calc(10px + env(safe-area-inset-top));
+  right:calc(10px + env(safe-area-inset-right));
+  width:52px;height:52px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:26px;line-height:1;
+  color:#3a2109;
+  cursor:pointer;
+  border-radius:50%;
+  border:3px solid #4d2e12;
+  background:linear-gradient(180deg,#ffd98a,#d69f47);
+  box-shadow:0 4px 0 #6b4118, 0 6px 12px rgba(0,0,0,.45);
+}
+.gear:active{transform:translateY(3px);box-shadow:0 1px 0 #6b4118;}
+
+.bestLine{
+  margin:18px 0 0;
+  color:#ffe6b8;
+  letter-spacing:3px;
+  font-size:14px;
+  text-shadow:0 2px 3px rgba(0,0,0,.6);
+}
+.bestLine b{font-size:20px;color:#fff6dd;}
+
+/* ------------------------------------------------------- wooden panels */
+.panel{
+  width:min(84vw,360px);
+  max-height:88vh;
+  overflow:auto;
+  padding:26px 22px 22px;
+  text-align:center;
+  border-radius:14px;
+  color:#f6e6c8;
+  background:
+    repeating-linear-gradient(90deg, rgba(0,0,0,.10) 0 2px, rgba(255,255,255,.03) 2px 6px),
+    linear-gradient(180deg,#a9702f,#7a4a1f 60%,#5d3616);
+  border:3px solid #43280f;
+  box-shadow:0 14px 34px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,225,170,.25);
+}
+.panel h1{
+  margin:0 0 14px;
+  font-size:clamp(24px,7vw,34px);
+  letter-spacing:2px;
+  color:#ffe9bd;
+  text-shadow:0 2px 0 #3a2109, 0 0 12px rgba(0,0,0,.4);
+}
+.panel .row{
+  display:flex;justify-content:space-between;align-items:center;
+  margin:8px 4px;font-size:16px;letter-spacing:1px;
+  color:#f0dcb4;
+}
+.panel .row b{font-size:20px;color:#fff4d6;}
+.panel .hint{
+  margin:12px 2px;font-size:14px;line-height:1.45;color:#e8d2a6;
+}
+.panel .warn{
+  margin:12px 0;padding:10px;
+  font-size:14px;font-weight:bold;line-height:1.4;
+  color:#ffdfd4;
+  background:rgba(150,25,10,.55);
+  border:2px solid #59180c;
+  border-radius:8px;
+}
+
+.woodBtn{
+  display:block;width:100%;margin:16px auto 0;
+  padding:14px 10px;
+  font:inherit;font-size:18px;font-weight:bold;letter-spacing:2px;
+  color:#3a2109;
+  cursor:pointer;
+  border-radius:10px;
+  border:3px solid #4d2e12;
+  background:linear-gradient(180deg,#ffd98a,#e0a94f 55%,#c1873a);
+  box-shadow:0 5px 0 #6b4118, 0 8px 14px rgba(0,0,0,.4);
+  transition:transform .06s ease, box-shadow .06s ease;
+}
+.woodBtn.small{font-size:14px;padding:12px;margin-top:10px;opacity:.92;}
+.woodBtn:active{transform:translateY(4px);box-shadow:0 1px 0 #6b4118, 0 3px 8px rgba(0,0,0,.4);}
+.woodBtn.off{
+  color:#6b5a45;
+  background:linear-gradient(180deg,#c7b596,#a08f74 55%,#87775f);
+}
+
+.newBest{
+  margin:0 0 10px;
+  font-size:16px;font-weight:bold;letter-spacing:3px;
+  color:#b6ff7a;
+  text-shadow:0 2px 0 #24400f;
+  animation:newBestPulse .9s ease-in-out infinite;
+}
+.newBest.hidden{display:none;}
+@keyframes newBestPulse{
+  0%,100%{transform:scale(1);}
+  50%{transform:scale(1.12);}
+}
+
+@media (prefers-reduced-motion: reduce){
+  .newBest{animation:none;}
+  .leaf,.woodBtn{transition:none;}
+}
+
+/* Short viewports (landscape phones): tighten the menu so it still fits */
+@media (max-height:520px){
+  .leaf{min-height:70px;padding:8px 24px;font-size:22px;}
+  .leaves{gap:0;}
+  .logo span{font-size:40px;}
+  .logo em{font-size:22px;}
+}
