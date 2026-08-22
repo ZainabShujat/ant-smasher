@@ -173,6 +173,8 @@
 
     startGame(config) {
       if (config) this.config = global.Config.normalise(config);
+      // Created species must exist in the registry before anything spawns.
+      global.Insects.ensureCustomTypes(this.config);
       this.resetRun();
       this.state = 'countdown';
       this.countdown = COUNTDOWN;
@@ -318,7 +320,7 @@
         ins.speed *= 0.75;
         this.effects.burst(ins.x, ins.y, 7, ins.def.splat);
         this.effects.kick(3);
-        A.thud(ins.type);
+        A.thud(ins.def.soundProfile || ins.type);
         return;
       }
 
@@ -336,7 +338,7 @@
       this.effects.splat(ins.x, ins.y, ins.hitRadius * (big ? 2.1 : 1.75), ins.def.splat);
       this.effects.popup(ins.x, ins.y - 14, '+' + gained);
       this.effects.kick(big ? 7 : 4);
-      A.smash(ins.type, this.combo);
+      A.smash(ins.def.soundProfile || ins.type, this.combo);
 
       if (this.multiplier > before) {
         this.effects.popup(ins.x, ins.y - 44, 'COMBO x' + this.multiplier, '#9dff7a', true);

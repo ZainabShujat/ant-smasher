@@ -120,6 +120,11 @@
   function pickType(d, config) {
     const w = weightsFor(d);
     if (config && config.insects) {
+      // Created species are available from the start - the player asked for
+      // them explicitly, so they do not wait for a difficulty ramp.
+      Object.keys(config.insects).forEach(function (k) {
+        if (!(k in w) && TYPES[k]) w[k] = 7;
+      });
       for (const k in w) {
         const c = config.insects[k];
         w[k] = !c || !c.enabled ? 0 : w[k] * c.weight;
@@ -392,7 +397,7 @@
       g.scale(this.scaleX * this.scale, this.scaleY * this.scale);
       g.globalAlpha = this.alpha;
 
-      drawShape(g, this.def.shape, this.size, this.walkPhase, this.def.colors);
+      drawShape(g, this.def.shape, this.size, this.walkPhase, this.def.colors, this.def.blueprint);
 
       // Damage flash for multi-hit bugs.
       if (this.flash > 0) {
@@ -798,7 +803,226 @@
     g.fill();
   }
 
-  function drawShape(g, shape, size, phase, colors) {
+  /* ------------------------------------------------------------- creator
+     Player-made species. A blueprint (body, legs, wings, eyes, colour, photo,
+     hazard) is registered as a real TYPES entry, so from the engine's point of
+     view a created insect is indistinguishable from a built-in one - it
+     spawns, crawls, takes hits, squashes, leaves a corpse and a splat. */
+
+  const BODIES = ['ant', 'beetle', 'spider', 'fly', 'roach', 'blob'];
+  const WINGS = ['none', 'bee', 'fly'];
+  const LEG_COUNTS = [0, 2, 4, 6, 8, 12];
+  const EYE_COUNTS = [1, 2, 4, 8];
+
+  // Which built-in squish profile a created body sounds like.
+  const SOUND_FOR_BODY = {
+    ant: 'ant', beetle: 'beetle', spider: 'spider',
+    fly: 'housefly', roach: 'cockroach', blob: 'bigAnt'
+  };
+
+  const photoCache = new Map();
+  function photoFor(dataUrl) {
+    if (!dataUrl) return null;
+    let img = photoCache.get(dataUrl);
+    if (!img) {
+      img = new Image();
+      img.src = dataUrl;
+      photoCache.set(dataUrl, img);
+    }
+    return img.complete && img.naturalWidth ? img : null;
+  }
+
+  function shade(hex, amount) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = clamp(((n >> 16) & 255) + amount, 0, 255);
+    const g2 = clamp(((n >> 8) & 255) + amount, 0, 255);
+    const b = clamp((n & 255) + amount, 0, 255);
+    return '#' + ((1 << 24) + (r << 16) + (g2 << 8) + b).toString(16).slice(1);
+  }
+
+  function blueprintColors(bp) {
+    const base = bp.color || '#4a7a2a';
+    return {
+      body: base,
+      shine: shade(base, 90),
+      limb: shade(base, -55),
+      accent: shade(base, 40)
+    };
+  }
+
+  /* Turn a blueprint into a spawnable TYPES entry. Called before a run and
+     whenever the creator previews, so edits show up immediately. */
+  function registerCustom(id, bp) {
+    TYPES[id] = {
+      id: id,
+      label: (bp.name || 'CREATURE').toUpperCase(),
+      shape: 'custom',
+      blueprint: bp,
+      custom: true,
+      target: bp.target !== false,
+      points: 1,
+      hp: 1,
+      size: [38, 50],
+      speed: [60, 100],
+      wander: 1.2,
+      sway: bp.wings && bp.wings !== 'none' ? 1 : 0,
+      flight: !!(bp.wings && bp.wings !== 'none' && bp.flies),
+      soundProfile: SOUND_FOR_BODY[bp.body] || 'ant',
+      splat: bp.splat || '#4a2a12',
+      colors: blueprintColors(bp)
+    };
+    return TYPES[id];
+  }
+
+  function ensureCustomTypes(config) {
+    if (!config || !config.insects) return;
+    Object.keys(config.insects).forEach(function (k) {
+      const c = config.insects[k];
+      if (c && c.custom) registerCustom(k, c.custom);
+    });
+  }
+
+  function isCustom(id) { return !!(TYPES[id] && TYPES[id].custom); }
+  function removeCustom(id) { if (isCustom(id)) delete TYPES[id]; }
+
+  /* Draw a created insect from its blueprint. */
+  function drawCustom(g, L, phase, colors, bp) {
+    g.scale(L / 46, L / 46);
+    const hazard = bp.target === false;
+    shadow(g, 12, 18);
+
+    if (hazard) {
+      // Created hazards must still read as "do not touch": same glow and
+      // bristle language as the wasp.
+      const pulse = 0.5 + 0.5 * Math.sin(phase * 0.5);
+      const halo = g.createRadialGradient(0, 2, 6, 0, 2, 30);
+      halo.addColorStop(0, 'rgba(255,215,40,' + (0.18 + pulse * 0.12) + ')');
+      halo.addColorStop(1, 'rgba(255,190,20,0)');
+      g.fillStyle = halo;
+      g.beginPath(); g.arc(0, 2, 30, 0, TAU); g.fill();
+      g.strokeStyle = '#ffd21a';
+      g.lineCap = 'round';
+      g.lineWidth = 2.2;
+      for (let i = 0; i < 14; i++) {
+        const a = (i / 14) * TAU;
+        g.beginPath();
+        g.moveTo(Math.cos(a) * 10, 3 + Math.sin(a) * 12);
+        g.lineTo(Math.cos(a) * 16, 3 + Math.sin(a) * 19);
+        g.stroke();
+      }
+    }
+
+    // --- wings, behind the body
+    if (bp.wings && bp.wings !== 'none') {
+      const bee = bp.wings === 'bee';
+      g.save();
+      g.globalAlpha *= bee ? 0.5 : 0.42;
+      for (let side = -1; side <= 1; side += 2) {
+        const flap = Math.sin(phase * (bee ? 2.2 : 1.4) + (side > 0 ? 0.8 : 0)) * 0.22;
+        g.save();
+        g.translate(side * 3, -2);
+        g.rotate(side * ((bee ? 0.35 : 0.55) + flap));
+        const wg = g.createLinearGradient(0, 0, side * 24, 0);
+        wg.addColorStop(0, 'rgba(255,255,255,.85)');
+        wg.addColorStop(1, 'rgba(210,230,255,.15)');
+        g.fillStyle = wg;
+        g.beginPath();
+        g.ellipse(side * (bee ? 13 : 12), bee ? -2 : 3, bee ? 14 : 13, bee ? 5.4 : 5, side * 0.25, 0, TAU);
+        g.fill();
+        g.restore();
+      }
+      g.restore();
+    }
+
+    // --- legs, radiating from the thorax
+    const legCount = LEG_COUNTS.indexOf(bp.legs) >= 0 ? bp.legs : 6;
+    if (legCount > 0) {
+      const perSide = Math.max(1, Math.round(legCount / 2));
+      g.strokeStyle = colors.limb;
+      g.lineCap = 'round';
+      for (let side = -1; side <= 1; side += 2) {
+        for (let i = 0; i < perSide; i++) {
+          const spread = perSide === 1 ? 0 : (i / (perSide - 1) - 0.5);
+          const base = spread * 1.9;
+          const sw = Math.sin(phase + i * 1.7 + (side > 0 ? Math.PI : 0)) * 0.24;
+          const a = base + sw;
+          const len = 20 - Math.abs(spread) * 5;
+          const kneeX = side * Math.cos(a) * len * 0.6;
+          const kneeY = Math.sin(a) * len * 0.5 - 5;
+          const endX = side * Math.cos(a + 0.2) * len * 1.15;
+          const endY = Math.sin(a + 0.2) * len * 0.9 + 5;
+          g.lineWidth = 2.3;
+          g.beginPath();
+          g.moveTo(side * 3, 0);
+          g.quadraticCurveTo(kneeX, kneeY, endX, endY);
+          g.stroke();
+        }
+      }
+    }
+
+    // --- body, shaped by the chosen type
+    const body = bp.body || 'ant';
+    if (body === 'beetle' || body === 'roach') {
+      segment(g, 0, -3, 9.6, 6.2, colors.accent, colors.shine);
+      segment(g, 0, 9, 11, 13.5, colors.body, colors.shine);
+      g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 1.4;
+      g.beginPath(); g.moveTo(0, -2); g.lineTo(0, 21); g.stroke();
+    } else if (body === 'spider') {
+      segment(g, 0, 10, 11.5, 12.5, colors.body, colors.shine);
+      segment(g, 0, -4, 7.4, 7, colors.accent, colors.shine);
+    } else if (body === 'fly') {
+      segment(g, 0, 10, 8.2, 10.5, colors.body, colors.shine);
+      segment(g, 0, -1, 7.2, 7, colors.accent, colors.shine);
+    } else if (body === 'blob') {
+      segment(g, 0, 6, 13, 14, colors.body, colors.shine);
+    } else {
+      segment(g, 0, 14, 8.5, 11, colors.body, colors.shine);
+      segment(g, 0, 0, 5.6, 7.5, colors.accent, colors.shine);
+      g.strokeStyle = colors.limb; g.lineWidth = 2.4;
+      g.beginPath(); g.moveTo(0, 2); g.lineTo(0, 8); g.stroke();
+    }
+
+    // --- head: a photo if the player supplied one, otherwise a segment
+    const headY = body === 'blob' ? -9 : body === 'spider' ? -13 : -11;
+    const img = photoFor(bp.photo);
+    if (img) {
+      const r = 9 * (bp.headScale || 1);
+      g.save();
+      g.beginPath();
+      g.arc(0, headY, r, 0, TAU);
+      g.clip();
+      const side = Math.min(img.naturalWidth, img.naturalHeight);
+      g.drawImage(img,
+        (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side,
+        -r, headY - r, r * 2, r * 2);
+      g.restore();
+      g.strokeStyle = colors.limb;
+      g.lineWidth = 1.6;
+      g.beginPath(); g.arc(0, headY, r, 0, TAU); g.stroke();
+    } else {
+      segment(g, 0, headY, 6.6, 6, colors.body, colors.shine);
+      const eyes = EYE_COUNTS.indexOf(bp.eyes) >= 0 ? bp.eyes : 2;
+      g.fillStyle = 'rgba(255,255,255,.75)';
+      if (eyes === 1) {
+        g.beginPath(); g.ellipse(0, headY - 1, 2.4, 2.8, 0, 0, TAU); g.fill();
+      } else {
+        const rows = eyes <= 2 ? 1 : eyes <= 4 ? 2 : 4;
+        const perRow = eyes / rows / 2;
+        for (let r2 = 0; r2 < rows; r2++) {
+          for (let side = -1; side <= 1; side += 2) {
+            for (let i = 0; i < perRow; i++) {
+              g.beginPath();
+              g.ellipse(side * (2.2 + i * 2.2), headY - 2 + r2 * 2.6, 1.3, 1.6, 0, 0, TAU);
+              g.fill();
+            }
+          }
+        }
+      }
+      antennae(g, phase, colors.limb, headY - 3, 14);
+    }
+  }
+
+  function drawShape(g, shape, size, phase, colors, blueprint) {
     if (shape === 'wasp') drawWasp(g, size, phase, colors);
     else if (shape === 'beetle') drawBeetle(g, size, phase, colors);
     else if (shape === 'fly') drawFly(g, size, phase, colors);
@@ -806,6 +1030,7 @@
     else if (shape === 'roach') drawRoach(g, size, phase, colors);
     else if (shape === 'spider') drawSpider(g, size, phase, colors);
     else if (shape === 'bubble') drawBubble(g, size, phase, colors);
+    else if (shape === 'custom') drawCustom(g, size, phase, colors, blueprint || {});
     else drawAnt(g, size, phase, colors);
   }
 
@@ -1102,7 +1327,7 @@
     // Splattered outward and pressed flat into the wood.
     g.save();
     g.scale(1.7, 0.26);
-    drawShape(g, ins.def.shape, bucket, ins.walkPhase, ins.def.colors);
+    drawShape(g, ins.def.shape, bucket, ins.walkPhase, ins.def.colors, ins.def.blueprint);
     g.restore();
 
     // Dead tint: darker, with a wash of the species' own splat colour.
@@ -1134,5 +1359,11 @@
     g.fill();
   }
 
-  global.Insects = { TYPES, Insect, pickType, weightsFor, renderCorpse, drawShape };
+  global.Insects = {
+    TYPES: TYPES, Insect: Insect, pickType: pickType, weightsFor: weightsFor,
+    renderCorpse: renderCorpse, drawShape: drawShape,
+    registerCustom: registerCustom, ensureCustomTypes: ensureCustomTypes,
+    removeCustom: removeCustom, isCustom: isCustom, blueprintColors: blueprintColors,
+    BODIES: BODIES, WINGS: WINGS, LEG_COUNTS: LEG_COUNTS, EYE_COUNTS: EYE_COUNTS
+  };
 })(window);

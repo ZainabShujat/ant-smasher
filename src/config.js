@@ -36,9 +36,73 @@
     maxInsects: [0.5, 2.0]
   };
 
-  /* Species that can be configured (the 1UP bubble is a pickup, not a bug). */
-  function speciesList() {
-    return Object.keys(global.Insects.TYPES).filter((k) => k !== 'lifeBubble');
+  /* Species that can be configured: the built-ins, plus whatever the player
+     has created in this config. (The 1UP bubble is a pickup, not a bug.) */
+  function builtInList() {
+    return Object.keys(global.Insects.TYPES)
+      .filter((k) => k !== 'lifeBubble' && !global.Insects.TYPES[k].custom);
+  }
+
+  function speciesList(cfg) {
+    const list = builtInList();
+    if (cfg && cfg.insects) {
+      Object.keys(cfg.insects).forEach((k) => {
+        if (cfg.insects[k] && cfg.insects[k].custom && list.indexOf(k) < 0) list.push(k);
+      });
+    }
+    return list;
+  }
+
+  /* A fresh creature blueprint. */
+  let customSeq = 0;
+  function newCustomId() {
+    customSeq += 1;
+    return 'custom_' + Date.now().toString(36) + '_' + customSeq;
+  }
+
+  function defaultBlueprint() {
+    return {
+      name: 'My Bug',
+      body: 'ant',
+      legs: 6,
+      wings: 'none',
+      eyes: 2,
+      color: '#7a3fb0',
+      splat: '#a02bd6',
+      photo: null,
+      target: true,
+      flies: false
+    };
+  }
+
+  function newCustomInsect() {
+    return {
+      enabled: true,
+      size: 1,
+      speed: 1,
+      hp: 1,
+      points: 5,
+      weight: 1,
+      movement: 'wandering',
+      custom: defaultBlueprint()
+    };
+  }
+
+  function normaliseBlueprint(bp) {
+    const base = defaultBlueprint();
+    if (!bp) return base;
+    const I = global.Insects;
+    base.name = String(bp.name || base.name).slice(0, 18);
+    base.body = I.BODIES.indexOf(bp.body) >= 0 ? bp.body : base.body;
+    base.legs = I.LEG_COUNTS.indexOf(bp.legs) >= 0 ? bp.legs : base.legs;
+    base.wings = I.WINGS.indexOf(bp.wings) >= 0 ? bp.wings : base.wings;
+    base.eyes = I.EYE_COUNTS.indexOf(bp.eyes) >= 0 ? bp.eyes : base.eyes;
+    base.color = /^#[0-9a-f]{6}$/i.test(bp.color || '') ? bp.color : base.color;
+    base.splat = /^#[0-9a-f]{6}$/i.test(bp.splat || '') ? bp.splat : base.splat;
+    base.photo = typeof bp.photo === 'string' && bp.photo.indexOf('data:image') === 0 ? bp.photo : null;
+    base.target = bp.target !== false;
+    base.flies = !!bp.flies && base.wings !== 'none';
+    return base;
   }
 
   function defaultInsectConfig(typeId) {
@@ -57,7 +121,7 @@
 
   function defaultConfig(name) {
     const insects = {};
-    speciesList().forEach((k) => { insects[k] = defaultInsectConfig(k); });
+    builtInList().forEach((k) => { insects[k] = defaultInsectConfig(k); });
     return {
       name: name || 'Classic',
       lives: 3,
@@ -81,7 +145,19 @@
     base.maxInsects = clamp(num(cfg.maxInsects, 1), LIMITS.maxInsects[0], LIMITS.maxInsects[1]);
     base.bubbles = cfg.bubbles !== false;
 
-    speciesList().forEach((k) => {
+    // Carry created species across, registering them so the engine can spawn
+    // them and the UI can draw them.
+    if (cfg.insects) {
+      Object.keys(cfg.insects).forEach((k) => {
+        const src = cfg.insects[k];
+        if (!src || !src.custom || base.insects[k]) return;
+        const entry = newCustomInsect();
+        entry.custom = normaliseBlueprint(src.custom);
+        base.insects[k] = entry;
+      });
+    }
+
+    speciesList(base).forEach((k) => {
       const src = (cfg.insects && cfg.insects[k]) || {};
       const dst = base.insects[k];
       dst.enabled = src.enabled !== false;
@@ -91,10 +167,14 @@
       dst.points = Math.round(clamp(num(src.points, dst.points), LIMITS.points[0], LIMITS.points[1]));
       dst.weight = clamp(num(src.weight, 1), LIMITS.weight[0], LIMITS.weight[1]);
       if (MOVEMENT[src.movement]) dst.movement = src.movement;
+      if (dst.custom) dst.custom = normaliseBlueprint(dst.custom);
     });
 
+    global.Insects.ensureCustomTypes(base);
+
     // A run with nothing to smash is not a run.
-    const anyTarget = speciesList().some((k) => base.insects[k].enabled && global.Insects.TYPES[k].target);
+    const anyTarget = speciesList(base).some((k) =>
+      base.insects[k].enabled && global.Insects.TYPES[k] && global.Insects.TYPES[k].target);
     if (!anyTarget) base.insects.ant.enabled = true;
 
     return base;
@@ -123,15 +203,24 @@
 
   // ------------------------------------------------------------------ chaos
   /* Randomise within sensible bounds: strange, but always playable. */
-  function chaos() {
+  function chaos(existing) {
     const cfg = defaultConfig('Chaos');
+    // Keep whatever the player has created; chaos randomises it too.
+    if (existing && existing.insects) {
+      Object.keys(existing.insects).forEach((k) => {
+        if (existing.insects[k] && existing.insects[k].custom) {
+          cfg.insects[k] = clone(existing.insects[k]);
+        }
+      });
+      global.Insects.ensureCustomTypes(cfg);
+    }
     cfg.lives = randInt(2, 5);
     cfg.spawnRate = rand(0.8, 2.0);
     cfg.globalSpeed = rand(0.7, 1.6);
     cfg.maxInsects = rand(0.8, 1.8);
 
-    const all = speciesList();
-    const targets = all.filter((k) => global.Insects.TYPES[k].target);
+    const all = speciesList(cfg);
+    const targets = all.filter((k) => global.Insects.TYPES[k] && global.Insects.TYPES[k].target);
     // Between three and all of the species, always including some targets.
     const keep = {};
     const wanted = randInt(3, all.length);
@@ -145,7 +234,7 @@
       c.speed = rand(0.5, 2.1);
       c.weight = rand(0.4, 2.4);
       c.movement = pick(['straight', 'wandering', 'erratic', 'erratic']);
-      if (global.Insects.TYPES[k].target) {
+      if (global.Insects.TYPES[k] && global.Insects.TYPES[k].target) {
         // Tough bugs must be worth the effort, and tiny fast ones stay 1-hit.
         const small = c.size < 0.9, fast = c.speed > 1.5;
         c.hp = small || fast ? 1 : randInt(1, 4);
@@ -287,6 +376,7 @@
 
   global.Config = {
     MOVEMENT, LIMITS, BANDS, STORE_KEY,
-    speciesList, defaultConfig, normalise, clone, save, load, chaos, estimate, simulate
+    speciesList, builtInList, defaultConfig, normalise, clone, save, load, chaos, estimate, simulate,
+    newCustomId, newCustomInsect, defaultBlueprint, normaliseBlueprint
   };
 })(window);
