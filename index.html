@@ -23,12 +23,16 @@
         <div class="leaves">
           <button id="btnPlay" class="leaf leaf-green">play</button>
           <button id="btnScores" class="leaf leaf-teal">scores</button>
+          <button id="btnCustom" class="leaf leaf-purple">custom</button>
           <button id="btnHow" class="leaf leaf-gold">how to play</button>
         </div>
 
         <p class="bestLine">BEST <b id="menuBest">0</b></p>
       </div>
     </div>
+
+    <!-- Custom Game: config builder over the same engine -->
+    <div id="customOverlay" class="overlay hidden"></div>
 
     <!-- Scores / how-to panel -->
     <div id="infoOverlay" class="overlay hidden">
@@ -74,8 +78,10 @@
   <script src="src/wood.js"></script>
   <script src="src/audio.js"></script>
   <script src="src/insects.js"></script>
+  <script src="src/config.js"></script>
   <script src="src/effects.js"></script>
   <script src="src/input.js"></script>
+  <script src="src/customui.js"></script>
   <script src="src/game.js"></script>
 </body>
 </html>

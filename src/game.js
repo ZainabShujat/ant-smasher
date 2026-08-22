@@ -28,6 +28,9 @@
 
       this.highScore = Number(localStorage.getItem(STORAGE_KEY) || 0) || 0;
       this.state = 'menu';
+      // Classic is simply the default configuration. Custom Game hands the
+      // same engine a different one.
+      this.config = global.Config.defaultConfig('Classic');
       this.scorePop = 0;
       this.danger = 0;
 
@@ -36,6 +39,7 @@
         play: document.getElementById('btnPlay'),
         scores: document.getElementById('btnScores'),
         how: document.getElementById('btnHow'),
+        custom: document.getElementById('btnCustom'),
         gear: document.getElementById('btnOptions'),
         menuBest: document.getElementById('menuBest'),
         info: document.getElementById('infoOverlay'),
@@ -66,6 +70,7 @@
         '<p class="row"><span>BEST</span><b>' + this.highScore + '</b></p>' +
         '<p class="hint">Beat it. Combos multiply everything.</p>'));
       wire(this.ui.how, () => this.showInfo('HOW TO PLAY', HOW_TO_HTML));
+      wire(this.ui.custom, () => this.showCustom());
       wire(this.ui.gear, () => this.showOptions());
       wire(this.ui.infoClose, () => this.ui.info.classList.add('hidden'));
       wire(this.ui.optClose, () => this.ui.options.classList.add('hidden'));
@@ -140,7 +145,7 @@
       this.insects.length = 0;
       this.effects.reset();
       this.score = 0;
-      this.lives = 3;
+      this.lives = this.config.lives;
       this.elapsed = 0;
       this.combo = 0;
       this.bestCombo = 0;
@@ -153,6 +158,8 @@
     }
 
     showMenu() {
+      // The menu background always runs plain Classic ants.
+      this.config = global.Config.defaultConfig('Classic');
       this.resetRun();
       this.state = 'menu';
       this.ui.menu.classList.remove('hidden');
@@ -160,10 +167,12 @@
       this.ui.pauseOverlay.classList.add('hidden');
       this.ui.info.classList.add('hidden');
       this.ui.options.classList.add('hidden');
+      if (this.customUI) this.customUI.close();
       this.ui.menuBest.textContent = this.highScore;
     }
 
-    startGame() {
+    startGame(config) {
+      if (config) this.config = global.Config.normalise(config);
       this.resetRun();
       this.state = 'countdown';
       this.countdown = COUNTDOWN;
@@ -179,6 +188,13 @@
       this.ui.infoTitle.textContent = title;
       this.ui.infoBody.innerHTML = html;
       this.ui.info.classList.remove('hidden');
+    }
+
+    /* Custom Game is built lazily: the menu should not pay for it. */
+    showCustom() {
+      if (!this.customUI) this.customUI = new global.CustomUI(this);
+      this.ui.menu.classList.add('hidden');
+      this.customUI.open();
     }
 
     showOptions() {
@@ -222,7 +238,7 @@
     spawnInterval() {
       if (this.state === 'menu') return rand(1.1, 2.2);
       const d = this.difficulty;
-      return Math.max(0.34, 1.35 - d * 0.11) * rand(0.75, 1.25);
+      return Math.max(0.34, 1.35 - d * 0.11) / this.config.spawnRate * rand(0.75, 1.25);
     }
 
     maxAlive() {
@@ -230,16 +246,17 @@
       // Narrow phone screens get slightly fewer bugs at once so the board
       // never turns into an unreadable pile.
       const room = clamp(this.w / 460, 0.75, 1.35);
-      return Math.max(3, Math.round((3 + this.difficulty * 1.5) * room));
+      return Math.max(3, Math.round((3 + this.difficulty * 1.5) * room * this.config.maxInsects));
     }
 
     spawn(forcedType) {
       const d = this.difficulty;
       // The menu background only ever shows harmless ants.
-      const typeId = forcedType || (this.state === 'menu' ? 'ant' : pickType(d));
+      const typeId = forcedType || (this.state === 'menu' ? 'ant' : pickType(d, this.config));
+      if (!typeId) return;
       const x = rand(this.world.left + 34, this.world.right - 34);
       const y = this.world.top - rand(20, 70);
-      const ins = new Insect(typeId, x, y, d);
+      const ins = new Insect(typeId, x, y, d, forcedType ? null : this.config);
       ins.size *= this.uiScale;
       ins.hitRadius *= this.uiScale;
       ins.speed *= (0.85 + 0.15 * this.uiScale);
@@ -392,7 +409,7 @@
       }
 
       // 1UP bubble: a late-game reward, and only if a life is missing.
-      if (live && this.score >= BUBBLE_SCORE) {
+      if (live && this.config.bubbles && this.score >= BUBBLE_SCORE) {
         this.bubbleTimer -= dt;
         const bubbleOut = this.insects.some((i) => i.type === 'lifeBubble' && i.alive);
         if (this.bubbleTimer <= 0 && !bubbleOut && this.lives < MAX_LIVES) {
@@ -546,7 +563,7 @@
       // Lives, right - glossy green dots. Extra lives from 1UP bubbles add
       // slots rather than overflowing the three the run starts with.
       const rad = Math.round(hud * 0.2);
-      const slots = Math.max(3, this.lives);
+      const slots = Math.max(this.config.lives, this.lives);
       for (let i = 0; i < slots; i++) {
         const x = w - (rad + 8) - i * (rad * 2 + 6);
         const y = hud / 2;

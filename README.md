@@ -14,9 +14,64 @@ https://zainabshujat.github.io/ant-smasher/
 Locally, any static server works — for example `python -m http.server 5173`,
 then open <http://localhost:5173>.
 
+## Architecture
+
+The engine does not hard-code Classic. A **config** describes a whole run - which
+species spawn, how each one behaves, and the global knobs - and Classic is simply
+the default config:
+
+```text
+CLASSIC  ->  DEFAULT CONFIG  -                               >--  SAME ENGINE
+CUSTOM   ->  CUSTOM CONFIG   -/
+```
+
+`src/config.js` owns the config shape, validation, persistence, the chaos
+randomiser and the difficulty rating. `src/customui.js` is a UI over that config
+and never touches the engine - it edits an object and calls `game.startGame(cfg)`.
+VS mode later means handing the same engine two configs; the insect creator means
+adding entries to `config.insects`. Neither needs a second engine.
+
+Per-species size/speed/spawn-weight are *multipliers* on that species' own
+defaults, so configs stay meaningful if a species is retuned later.
+
 ## Status
 
-Classic mode is feature-complete. Not yet built: custom photo mode.
+Classic and Custom Game are complete. Not yet built: the insect creator
+(the "+ CREATE INSECT" button is present but disabled), custom photos, VS.
+
+### Custom Game
+
+Every species can be toggled, and each opens an editor with a live preview:
+size (0.5x-2x), speed (0.4x-2.5x), health (1-5 hits), points (1-20), spawn
+frequency, and movement (straight / wandering / erratic). Global settings cover
+starting lives, spawn rate, speed and max insects. Configs persist to
+`localStorage`, and **CHAOS** rolls a random-but-playable one.
+
+Guard rails stop an impossible game: everything is clamped to sane ranges, at
+least one target species is always enabled, and chaos keeps tiny or fast bugs
+to one hit.
+
+### Difficulty rating
+
+Rather than guess with a formula, the rating **runs the real entity simulation
+headless** with a bot player (human-ish 0.33 s tap cadence, divided attention,
+misses more on small and fast bugs, and slows down as the board fills up).
+
+It measures *mistake pressure* rather than time-to-death: time-to-death turned
+out bimodal - the bot either keeps up forever or collapses - which produced a
+cliff between "casual" and "cursed" with nothing in between. The score blends
+how much of the time targets are loose near the bottom edge (smooth) with
+escapes and hazard hits (sharp), and expected survival falls out of the
+config's own life count. Six runs of 90 s cost about 25 ms, so it updates live
+as sliders move. Sample ratings:
+
+| Config | Score | Rating |
+|---|---|---|
+| Classic | 0.2 | CASUAL |
+| Spawn rate 2x | 1.7 | CASUAL |
+| Everything 2x | 10.8 | HARD |
+| 2x + small + fast | 27.3 | CURSED |
+| 1 life, 5 hits, max everything | 50.2 | CURSED |
 
 ### Bugs
 
@@ -149,6 +204,8 @@ ant-smash/
 │   ├── utils.js      math, RNG and noise helpers
 │   ├── wood.js       procedural plank + HUD strip textures
 │   ├── audio.js      Web Audio synthesis, per-species squish, settings
+│   ├── config.js     run configs, chaos, difficulty simulation
+│   ├── customui.js   Custom Game screen (edits a config, not the engine)
 │   ├── insects.js    type registry, entity class, sprite + corpse rendering
 │   ├── effects.js    particles, splats, corpses, popups, shake, flash
 │   ├── input.js      mouse/touch normalisation into canvas coordinates

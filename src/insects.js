@@ -117,10 +117,23 @@
     };
   }
 
-  function pickType(d) {
+  function pickType(d, config) {
     const w = weightsFor(d);
+    if (config && config.insects) {
+      for (const k in w) {
+        const c = config.insects[k];
+        w[k] = !c || !c.enabled ? 0 : w[k] * c.weight;
+      }
+    }
     let total = 0;
     for (const k in w) total += w[k];
+    if (total <= 0) {
+      // Nothing has ramped in yet: fall back to the first enabled target.
+      if (!config) return 'ant';
+      const first = Object.keys(config.insects).find((k) =>
+        config.insects[k].enabled && TYPES[k] && TYPES[k].target);
+      return first || null;
+    }
     let r = Math.random() * total;
     for (const k in w) {
       r -= w[k];
@@ -132,37 +145,45 @@
   let nextId = 1;
 
   class Insect {
-    constructor(typeId, x, y, difficulty) {
+    constructor(typeId, x, y, difficulty, config) {
       const t = TYPES[typeId];
       this.id = nextId++;
       this.type = typeId;
       this.def = t;
       this.isTarget = t.target;
 
+      // Per-species overrides from the run config (Classic passes none, so
+      // everything falls back to this species' own defaults).
+      const cfg = (config && config.insects && config.insects[typeId]) || null;
+      const move = cfg && global.Config ? global.Config.MOVEMENT[cfg.movement] : null;
+      this.wander = t.wander * (move ? move.wander : 1);
+      this.sway = t.sway * (move ? move.sway : 1);
+
       this.x = x;
       this.y = y;
 
-      this.size = rand(t.size[0], t.size[1]);            // body length px
+      this.size = rand(t.size[0], t.size[1]) * (cfg ? cfg.size : 1);   // body length px
       this.scale = 1;                                     // squash/stretch
       this.scaleX = 1;
       this.scaleY = 1;
       this.alpha = 1;
 
-      this.speed = rand(t.speed[0], t.speed[1]) * (1 + 0.05 * difficulty);
+      this.speed = rand(t.speed[0], t.speed[1]) * (1 + 0.05 * difficulty) *
+        (cfg ? cfg.speed : 1) * (config ? config.globalSpeed : 1);
       this.heading = Math.PI / 2 + rand(-0.45, 0.45);     // mostly downward
       this.targetHeading = this.heading;
       this.rotation = this.heading;
       this.vx = 0;
       this.vy = 0;
 
-      this.hp = t.hp;
-      this.maxHp = t.hp;
-      this.points = t.points;
+      this.hp = cfg ? cfg.hp : t.hp;
+      this.maxHp = this.hp;
+      this.points = cfg ? cfg.points : t.points;
       // The wasp is big, so its hitbox is a tight circle over the body core:
       // taps near it (aimed at an ant) must not register as a wasp hit.
       this.hitRadius = this.size * (t.shape === 'wasp' ? 0.26 : 0.42);
       this.wanderSeed = rand(0, 1000);
-      this.wanderRate = rand(0.6, 1.5) * t.wander;
+      this.wanderRate = rand(0.6, 1.5) * this.wander;
       this.swayPhase = rand(0, TAU);
       this.turnTimer = rand(0.4, 1.6);
       this.walkPhase = rand(0, TAU);
@@ -220,12 +241,12 @@
       // deliberate direction changes, so no two bugs trace the same path.
       this.turnTimer -= dt;
       if (this.turnTimer <= 0) {
-        this.turnTimer = rand(0.5, 2.0) / this.def.wander;
-        this.targetHeading = Math.PI / 2 + rand(-0.85, 0.85) * this.def.wander;
+        this.turnTimer = rand(0.5, 2.0) / Math.max(0.1, this.wander);
+        this.targetHeading = Math.PI / 2 + rand(-0.85, 0.85) * this.wander;
       }
       const n = (smoothNoise(this.stateTime * this.wanderRate, this.wanderSeed) - 0.5) * 1.6;
       const want = this.targetHeading + n * 0.55;
-      this.heading = angleTowards(this.heading, want, dt * 3.2 * this.def.wander);
+      this.heading = angleTowards(this.heading, want, dt * 3.2 * this.wander);
 
       // Keep them inside the play area: steer away from side walls.
       const margin = 26;
@@ -251,9 +272,9 @@
       this.vy = Math.sin(this.heading) * sp;
 
       // Fliers weave sideways on top of their heading.
-      if (this.def.sway) {
+      if (this.sway) {
         this.swayPhase += dt * 4.5;
-        this.vx += Math.cos(this.heading + Math.PI / 2) * Math.sin(this.swayPhase) * sp * this.def.sway * 0.5;
+        this.vx += Math.cos(this.heading + Math.PI / 2) * Math.sin(this.swayPhase) * sp * this.sway * 0.5;
       }
 
       this.x += this.vx * dt;
