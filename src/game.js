@@ -251,17 +251,42 @@
       return Math.max(3, Math.round((3 + this.difficulty * 1.5) * room * this.config.maxInsects));
     }
 
+    /* Solo species (the goliath) may only have one alive at a time. */
+    soloBlocked(typeId) {
+      const def = global.Insects.TYPES[typeId];
+      if (!def || !def.solo) return false;
+      return this.insects.some((i) => i.type === typeId && i.alive);
+    }
+
+    hasSolo() {
+      return this.insects.some((i) => i.alive && i.def.solo);
+    }
+
     spawn(forcedType) {
       const d = this.difficulty;
-      // The menu background only ever shows harmless ants.
-      const typeId = forcedType || (this.state === 'menu' ? 'ant' : pickType(d, this.config));
-      if (!typeId) return;
+      let typeId = forcedType || (this.state === 'menu' ? 'ant' : pickType(d, this.config));
+
+      // Re-roll if the pick is a solo species that is already out there.
+      for (let tries = 0; typeId && !forcedType && this.soloBlocked(typeId) && tries < 6; tries++) {
+        typeId = pickType(d, this.config);
+      }
+      if (!typeId || this.soloBlocked(typeId)) return;
+
       const x = rand(this.world.left + 34, this.world.right - 34);
       const y = this.world.top - rand(20, 70);
       const ins = new Insect(typeId, x, y, d, forcedType ? null : this.config);
       ins.size *= this.uiScale;
       ins.hitRadius *= this.uiScale;
       ins.speed *= (0.85 + 0.15 * this.uiScale);
+
+      // Now and then an ordinary species throws up an oversized individual:
+      // slower, several hits, worth a lot. Gets likelier as things heat up.
+      const def = global.Insects.TYPES[typeId];
+      if (!forcedType && def.target && !def.solo && !def.bonus && d > 1.2) {
+        const chance = Math.min(0.22, 0.05 + d * 0.02);
+        if (Math.random() < chance) ins.makeBrute(rand(1.45, 1.85));
+      }
+
       this.insects.push(ins);
     }
 
@@ -407,7 +432,9 @@
       for (let i = 0; i < this.insects.length; i++) if (this.insects[i].alive) aliveCount++;
       if (this.spawnTimer <= 0 && aliveCount < this.maxAlive()) {
         this.spawn();
-        this.spawnTimer = this.spawnInterval();
+        // A goliath is a siege: the rest keep coming, but at a slower drip so
+        // the player can actually work it down.
+        this.spawnTimer = this.spawnInterval() * (this.hasSolo() ? 1.9 : 1);
       }
 
       // 1UP bubble: a late-game reward, and only if a life is missing.
@@ -602,6 +629,8 @@
     '<p class="row"><span>Beetle</span><b>+3 &middot; 2 hits</b></p>',
     '<p class="row"><span>Cockroach</span><b>+4 &middot; 2 hits</b></p>',
     '<p class="row"><span>Spider</span><b>+6 &middot; 3 hits</b></p>',
+    '<p class="row"><span>Goliath beetle</span><b>+25 &middot; 5 hits</b></p>',
+    '<p class="hint">Only one goliath is ever on screen, and the rest slow down while it is. Any bug can also turn up oversized: bigger, tougher, worth far more.</p>',
     '<p class="warn">NEVER smash the big striped wasp &mdash; it costs a life.</p>',
     '<p class="hint">Past 400 points a green <b>1UP</b> bubble drifts in now and then. Pop it for an extra life, up to five.</p>',
     '<p class="hint">An ant escaping off the bottom also costs a life. Chain hits to build a combo multiplier, up to x5.</p>'

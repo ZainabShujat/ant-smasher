@@ -171,6 +171,8 @@
         else c[field] = field === 'hp' || field === 'points' ? Math.round(v) : v;
         const label = this.editor.querySelector('[data-label="' + field + '"]');
         if (label) label.textContent = this.valueText(field, c[field]);
+        // Size is visible in the preview, so redraw it as the slider moves.
+        if (field === 'size' && this.creating === species) this.drawPreview(species);
       } else {
         this.cfg[field] = field === 'lives' ? Math.round(v) : v;
         const label = this.foot.querySelector('[data-label="' + field + '"]');
@@ -245,7 +247,9 @@
     }
 
     creatorHtml(key) {
-      const bp = this.cfg.insects[key].custom;
+      const c = this.cfg.insects[key];
+      const bp = c.custom;
+      const moveIdx = MOVEMENTS.findIndex((m) => m[0] === c.movement);
       const I = global.Insects;
       const chips = (field, values, labels) => values.map((v) =>
         '<button class="chip' + (bp[field] === v ? ' on' : '') + '"' +
@@ -287,6 +291,14 @@
         '</div>' +
         (!bp.target ? '<p class="cuWarn">Hazards cost a life when smashed, and get the ' +
           'warning glow so players can tell.</p>' : '') +
+        '<h3>Stats</h3>' +
+        this.slider('size', key, 'Size', C.LIMITS.size, 0.05, c.size) +
+        this.slider('speed', key, 'Speed', C.LIMITS.speed, 0.05, c.speed) +
+        (bp.target ?
+          this.slider('hp', key, 'Hits to kill', C.LIMITS.hp, 1, c.hp) +
+          this.slider('points', key, 'Points', C.LIMITS.points, 1, c.points) : '') +
+        this.slider('weight', key, 'Spawn frequency', C.LIMITS.weight, 0.05, c.weight) +
+        this.slider('movement', key, 'Movement', [0, MOVEMENTS.length - 1], 1, moveIdx, c.movement) +
         '<button class="woodBtn" data-act="closeCreator">DONE</button>';
     }
 
@@ -344,6 +356,7 @@
       const type = global.Insects.TYPES[key];
       const bits = [this.valueText('size', c.size) + ' size', this.valueText('speed', c.speed) + ' speed'];
       if (type.target) bits.push(c.hp + (c.hp === 1 ? ' hit' : ' hits'), c.points + ' pts');
+      if (type.solo) bits.push('one at a time');
       return bits.join(' &middot; ');
     }
 
@@ -439,7 +452,7 @@
       const type = global.Insects.TYPES[key];
       const c = this.cfg.insects[key];
       const base = (type.size[0] + type.size[1]) / 2 * c.size;
-      const fit = Math.min(1, 96 / base);
+      const fit = Math.min(1, 104 / base);
 
       g.save();
       g.translate(110, 75);

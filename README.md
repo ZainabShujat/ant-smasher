@@ -70,7 +70,10 @@ colour, and counts toward the difficulty rating.
 | Colour / splatter | 10 swatches each |
 | Face photo | any local image |
 | Role | smash me, or **hazard** |
-| Stats | size, speed, health, points, spawn frequency, movement |
+| Stats | size (0.5x-2x), speed, hits to kill (1-6), points, spawn frequency, movement |
+
+All of that lives on the one creator screen - appearance and stats together -
+with a preview that rescales as you drag the size slider.
 
 A created **hazard** costs a life exactly like the wasp, and inherits the same
 warning language - the pulsing glow and radiating bristles - so a player can
@@ -115,12 +118,26 @@ as sliders move. Sample ratings:
 | Beetle | 3 | 2 | armoured, green splat |
 | Cockroach | 4 | 2 | scuttles in bursts, then freezes |
 | Spider | 6 | 3 | eight legs, dashes and stops |
+| **Goliath beetle** | 25 | **5** | huge, slow, **only one at a time** |
 | **Wasp** | — | — | **never smash it — costs a life** |
 | 1UP bubble | — | 1 | green floating bonus, see below |
 
 Species ramp in with difficulty: pure ants for the first ~15 s, then fast ants,
-flies and wasps, then soldiers, mosquitoes and beetles, and finally roaches and
-spiders once things are properly chaotic.
+flies and wasps, then soldiers, mosquitoes and beetles, goliaths from about
+45 s, and finally roaches and spiders once things are properly chaotic.
+
+**Size varies a lot.** Each species spawns across a wide size range (an ant is
+anywhere from 28 to 50 px), and from difficulty 1.2 onward any ordinary species
+can throw up a **brute**: 1.45x-1.85x the size, two extra hits, noticeably
+slower, and worth 3.5x the points. The chance climbs from 5% to 22% as things
+heat up, so late runs regularly contain 4- and 5-hit monsters.
+
+The **goliath beetle** is the set piece - about 3.5x an ant, five hits, 25
+points, and never more than one on screen. While it is out the rest of the
+spawns slow to a drip (interval x1.9), so it plays as a siege you chip down
+while smaller bugs keep trickling past. Multi-hit bugs now show **cracks that
+spread across the body** as they take damage, so you can see what is nearly
+dead.
 
 ### Rules
 

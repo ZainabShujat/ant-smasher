@@ -13,7 +13,7 @@
     ant: {
       id: 'ant', label: 'ANT', shape: 'ant',
       target: true, points: 1, hp: 1,
-      size: [32, 44], speed: [55, 88],
+      size: [28, 50], speed: [55, 88],
       wander: 1.0, sway: 0,
       splat: '#3a2411',
       colors: { body: '#17110d', shine: '#5c4a3c', limb: '#2a1a10', accent: '#7a3f14' }
@@ -21,7 +21,7 @@
     fastAnt: {
       id: 'fastAnt', label: 'FAST ANT', shape: 'ant',
       target: true, points: 2, hp: 1,
-      size: [26, 34], speed: [128, 172],
+      size: [22, 38], speed: [128, 172],
       wander: 1.6, sway: 0.6,
       splat: '#8a3c0e',
       colors: { body: '#8a2f0c', shine: '#e08a45', limb: '#5a1d06', accent: '#d96a1c' }
@@ -29,7 +29,7 @@
     bigAnt: {
       id: 'bigAnt', label: 'SOLDIER ANT', shape: 'ant',
       target: true, points: 3, hp: 2,
-      size: [62, 80], speed: [34, 52],
+      size: [58, 92], speed: [34, 52],
       wander: 0.6, sway: 0,
       splat: '#241708',
       colors: { body: '#120c08', shine: '#6b5646', limb: '#1d1108', accent: '#5c2a0c' }
@@ -37,7 +37,7 @@
     beetle: {
       id: 'beetle', label: 'BEETLE', shape: 'beetle',
       target: true, points: 3, hp: 2,
-      size: [40, 54], speed: [46, 72],
+      size: [36, 62], speed: [46, 72],
       wander: 0.8, sway: 0.2,
       splat: '#1e3a1c',
       colors: { body: '#16301b', shine: '#7fc07a', limb: '#0f1d10', accent: '#3f7a35' }
@@ -45,7 +45,7 @@
     housefly: {
       id: 'housefly', label: 'HOUSEFLY', shape: 'fly',
       target: true, points: 2, hp: 1,
-      size: [34, 44], speed: [95, 140],
+      size: [30, 50], speed: [95, 140],
       wander: 1.6, sway: 0, flight: true,
       splat: '#4a3a1e',
       colors: { body: '#2b2b30', shine: '#8d8d96', limb: '#17171a', accent: '#55555e' }
@@ -53,7 +53,7 @@
     mosquito: {
       id: 'mosquito', label: 'MOSQUITO', shape: 'mosquito',
       target: true, points: 3, hp: 1,
-      size: [26, 34], speed: [130, 180],
+      size: [22, 38], speed: [130, 180],
       wander: 2.2, sway: 0, flight: true,
       splat: '#7a1420',
       colors: { body: '#3b3026', shine: '#9b8b76', limb: '#241d16', accent: '#6b5540' }
@@ -61,7 +61,7 @@
     cockroach: {
       id: 'cockroach', label: 'COCKROACH', shape: 'roach',
       target: true, points: 4, hp: 2,
-      size: [52, 66], speed: [95, 135],
+      size: [46, 74], speed: [95, 135],
       wander: 1.1, sway: 0,
       burst: { on: [0.35, 0.7], off: [0.4, 1.1], mult: 2.3 },
       splat: '#5a3a12',
@@ -70,11 +70,21 @@
     spider: {
       id: 'spider', label: 'SPIDER', shape: 'spider',
       target: true, points: 6, hp: 3,
-      size: [54, 68], speed: [58, 88],
+      size: [48, 78], speed: [58, 88],
       wander: 1.3, sway: 0,
       burst: { on: [0.25, 0.5], off: [0.5, 1.4], mult: 3.1 },
       splat: '#2a1030',
       colors: { body: '#1a1218', shine: '#6b5a68', limb: '#120c10', accent: '#5a2038' }
+    },
+    goliath: {
+      // The big one. Always a target, never more than one on screen, and it
+      // takes five hits - a slow siege that the smaller bugs interrupt.
+      id: 'goliath', label: 'GOLIATH BEETLE', shape: 'goliath',
+      target: true, points: 25, hp: 5, solo: true,
+      size: [118, 152], speed: [24, 38],
+      wander: 0.45, sway: 0,
+      splat: '#3a1e08',
+      colors: { body: '#40270a', shine: '#d3a961', limb: '#241505', accent: '#8a5514' }
     },
     lifeBubble: {
       // Not an insect: a floating green bubble worth an extra life. Appears
@@ -113,6 +123,7 @@
       beetle: d > 3.0 ? 0.8 + d * 0.6 : 0,
       cockroach: d > 3.6 ? 0.8 + d * 0.55 : 0,
       spider: d > 4.5 ? 0.6 + d * 0.5 : 0,
+      goliath: d > 2.5 ? 0.7 + d * 0.3 : 0,
       wasp: d > 0.8 ? 1.2 + d * 1.0 : 0
     };
   }
@@ -211,6 +222,20 @@
     }
 
     get alive() { return this.state === 'alive'; }
+
+    /* An oversized individual of an ordinary species: bigger, tougher, slower
+       and worth far more. Applied at spawn time, so any species can throw up
+       the occasional monster. */
+    makeBrute(scale) {
+      this.brute = true;
+      this.size *= scale;
+      this.hitRadius *= scale;
+      this.speed *= 0.72;
+      this.hp = Math.min(6, this.hp + 2);
+      this.maxHp = this.hp;
+      this.points = Math.round(this.points * 3.5);
+      return this;
+    }
 
     update(dt, world) {
       this.stateTime += dt;
@@ -397,7 +422,31 @@
       g.scale(this.scaleX * this.scale, this.scaleY * this.scale);
       g.globalAlpha = this.alpha;
 
+      g.save();
       drawShape(g, this.def.shape, this.size, this.walkPhase, this.def.colors, this.def.blueprint);
+      g.restore();   // drawShape leaves its own scale applied
+
+      // Damage: cracks spread across the body as hits land, so a five-hit
+      // bug visibly wears down instead of just flashing.
+      if (this.maxHp > 1 && this.hp < this.maxHp) {
+        const taken = this.maxHp - this.hp;
+        const r = this.size * 0.34;
+        g.save();
+        g.globalAlpha = this.alpha * 0.85;
+        g.strokeStyle = 'rgba(255,236,200,.8)';
+        g.lineWidth = Math.max(1.2, this.size * 0.035);
+        g.lineCap = 'round';
+        for (let i = 0; i < taken; i++) {
+          const a = (i / this.maxHp) * TAU + i * 1.7;
+          const x0 = Math.cos(a) * r * 0.25, y0 = Math.sin(a) * r * 0.25;
+          g.beginPath();
+          g.moveTo(x0, y0);
+          g.lineTo(x0 + Math.cos(a + 0.5) * r * 0.55, y0 + Math.sin(a + 0.5) * r * 0.75);
+          g.lineTo(Math.cos(a) * r * 0.95, Math.sin(a) * r * 1.05);
+          g.stroke();
+        }
+        g.restore();
+      }
 
       // Damage flash for multi-hit bugs.
       if (this.flash > 0) {
@@ -1022,6 +1071,74 @@
     }
   }
 
+  /* Goliath: a hulking rhinoceros beetle. Heavy plates, thick jointed legs
+     and a horn, so at a glance it reads as "this will take a while". */
+  function drawGoliath(g, L, phase, c) {
+    g.scale(L / 46, L / 46);
+    shadow(g, 16, 20);
+
+    // Thick legs
+    g.strokeStyle = c.limb;
+    g.lineCap = 'round';
+    const rows = [
+      { y: -7, a: -0.95, f: 13, t: 15 },
+      { y: -1, a: -0.15, f: 14, t: 17 },
+      { y: 6, a: 0.6, f: 13, t: 16 }
+    ];
+    for (let side = -1; side <= 1; side += 2) {
+      rows.forEach((leg, i) => {
+        const sw = Math.sin(phase + i * 2.1 + (side > 0 ? Math.PI : 0)) * 0.2;
+        const a = leg.a + sw;
+        const kx = side * Math.cos(a) * leg.f + side * 4;
+        const ky = leg.y + Math.sin(a) * leg.f - 4;
+        const ex = kx + side * Math.cos(a + 0.8) * leg.t * 0.8;
+        const ey = ky + Math.sin(a + 0.8) * leg.t + 4;
+        g.lineWidth = 4.2;
+        g.beginPath(); g.moveTo(side * 5, leg.y); g.lineTo(kx, ky); g.stroke();
+        g.lineWidth = 3.0;
+        g.beginPath(); g.moveTo(kx, ky); g.lineTo(ex, ey); g.stroke();
+        // spines
+        g.lineWidth = 1.4;
+        g.beginPath(); g.moveTo(ex, ey); g.lineTo(ex + side * 4, ey + 4); g.stroke();
+      });
+    }
+
+    // Head plate and horn
+    segment(g, 0, -15, 7.4, 5.4, c.body, c.shine);
+    g.strokeStyle = c.accent;
+    g.lineWidth = 4;
+    g.beginPath();
+    g.moveTo(0, -17);
+    g.quadraticCurveTo(1.5, -25, -2.5, -30);
+    g.stroke();
+    g.lineWidth = 2.4;
+    g.beginPath();
+    g.moveTo(-1.5, -22);
+    g.quadraticCurveTo(4, -25, 5.5, -29);
+    g.stroke();
+
+    // Pronotum
+    segment(g, 0, -6, 11.5, 7.4, c.accent, c.shine);
+
+    // Domed elytra with a hard seam and ridges
+    segment(g, 0, 10, 14.5, 15.5, c.body, c.shine);
+    g.strokeStyle = 'rgba(0,0,0,.7)';
+    g.lineWidth = 2;
+    g.beginPath(); g.moveTo(0, -4); g.lineTo(0, 25); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.10)';
+    g.lineWidth = 1.2;
+    for (let side = -1; side <= 1; side += 2) {
+      for (let k = 1; k <= 2; k++) {
+        g.beginPath();
+        g.moveTo(side * k * 4, -1);
+        g.quadraticCurveTo(side * (k * 4 + 4), 10, side * k * 3.4, 22);
+        g.stroke();
+      }
+    }
+    eyes(g, 4.6, -16);
+    gloss(g, -6, 3, 3.4, 7);
+  }
+
   function drawShape(g, shape, size, phase, colors, blueprint) {
     if (shape === 'wasp') drawWasp(g, size, phase, colors);
     else if (shape === 'beetle') drawBeetle(g, size, phase, colors);
@@ -1029,6 +1146,7 @@
     else if (shape === 'mosquito') drawMosquito(g, size, phase, colors);
     else if (shape === 'roach') drawRoach(g, size, phase, colors);
     else if (shape === 'spider') drawSpider(g, size, phase, colors);
+    else if (shape === 'goliath') drawGoliath(g, size, phase, colors);
     else if (shape === 'bubble') drawBubble(g, size, phase, colors);
     else if (shape === 'custom') drawCustom(g, size, phase, colors, blueprint || {});
     else drawAnt(g, size, phase, colors);

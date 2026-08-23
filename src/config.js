@@ -27,7 +27,7 @@
   const LIMITS = {
     size: [0.5, 2.0],
     speed: [0.4, 2.5],
-    hp: [1, 5],
+    hp: [1, 6],
     points: [1, 20],
     weight: [0.2, 3.0],
     lives: [1, 5],
@@ -289,11 +289,17 @@
       for (let i = 0; i < insects.length; i++) if (insects[i].alive) alive++;
       const cap = Math.max(3, Math.round((3 + d * 1.5) * cfg.maxInsects));
       if (spawnTimer <= 0 && alive < cap) {
-        const typeId = Insects.pickType(d, cfg);
-        if (typeId) {
+        let typeId = Insects.pickType(d, cfg);
+        const soloOut = (id) => Insects.TYPES[id] && Insects.TYPES[id].solo &&
+          insects.some((i) => i.type === id && i.alive);
+        for (let tries = 0; typeId && soloOut(typeId) && tries < 6; tries++) {
+          typeId = Insects.pickType(d, cfg);
+        }
+        if (typeId && !soloOut(typeId)) {
           insects.push(new Insects.Insect(typeId, rand(34, w - 34), hud - rand(20, 70), d, cfg));
         }
-        spawnTimer = Math.max(0.34, 1.35 - d * 0.11) / cfg.spawnRate * rand(0.75, 1.25);
+        const busy = insects.some((i) => i.alive && i.def.solo) ? 1.9 : 1;
+        spawnTimer = Math.max(0.34, 1.35 - d * 0.11) / cfg.spawnRate * rand(0.75, 1.25) * busy;
       }
 
       for (let i = insects.length - 1; i >= 0; i--) {
