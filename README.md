@@ -28,16 +28,18 @@ CUSTOM   ->  CUSTOM CONFIG   -/
 `src/config.js` owns the config shape, validation, persistence, the chaos
 randomiser and the difficulty rating. `src/customui.js` is a UI over that config
 and never touches the engine - it edits an object and calls `game.startGame(cfg)`.
-VS mode later means handing the same engine two configs; the insect creator means
-adding entries to `config.insects`. Neither needs a second engine.
+VS mode later means handing the same engine two configs. The insect creator was
+built exactly this way - a created species is just another entry in
+`config.insects` carrying a blueprint, registered into the type registry before
+a run - so it needed no engine changes at all.
 
 Per-species size/speed/spawn-weight are *multipliers* on that species' own
 defaults, so configs stay meaningful if a species is retuned later.
 
 ## Status
 
-Classic and Custom Game are complete. Not yet built: the insect creator
-(the "+ CREATE INSECT" button is present but disabled), custom photos, VS.
+Classic, Custom Game and the insect creator are complete. Not yet built: VS,
+saved/shareable swarms.
 
 ### Custom Game
 
@@ -50,6 +52,34 @@ starting lives, spawn rate, speed and max insects. Configs persist to
 Guard rails stop an impossible game: everything is clamped to sane ranges, at
 least one target species is always enabled, and chaos keeps tiny or fast bugs
 to one hit.
+
+### Insect creator
+
+**+ CREATE INSECT** builds a new species from parts, and a created insect is a
+first-class citizen: it is registered as a real entry in the type registry, so
+the engine cannot tell it apart from a built-in one. It spawns on the ramp,
+crawls or flies, takes hits, squashes, leaves a corpse and a splat in its own
+colour, and counts toward the difficulty rating.
+
+| Choice | Options |
+|---|---|
+| Body | ant, beetle, spider, fly, roach, blob |
+| Legs | 0, 2, 4, 6, 8, 12 |
+| Wings | none, bee, fly (+ flies or crawls) |
+| Eyes | 1, 2, 4, 8 |
+| Colour / splatter | 10 swatches each |
+| Face photo | any local image |
+| Role | smash me, or **hazard** |
+| Stats | size, speed, health, points, spawn frequency, movement |
+
+A created **hazard** costs a life exactly like the wasp, and inherits the same
+warning language - the pulsing glow and radiating bristles - so a player can
+still tell at a glance what not to touch.
+
+Photos are read with the File API, downscaled to 128px on a canvas and stored
+as a data URL in the config. **Nothing is uploaded** - the picture never leaves
+the device. A whole config with a photo is about 5 KB in `localStorage`, and
+anything that is not a real `data:image` URL is rejected on load.
 
 ### Difficulty rating
 
